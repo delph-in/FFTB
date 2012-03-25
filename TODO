@@ -1,0 +1,40 @@
+goal: either web-based or lui-based UI where user does:
+	1. initiate a session by picking a sentence from a tsdb profile
+	2. that sentence is parsed by the backend, and the backend records the packed forest and stays open with that forest in memory
+	3. the user is presented with a display of the sentence, and can mak decisions
+	4. record decisions to the tsdb profile (or a copy of it)
+
+improvements:
+	- option to show *all* remaining discriminants (or, say, up to 20)
+	- (option to?) show lexical types instead of lexeme names
+	- item id display -- part of a prev/next/save interface
+	- display parse tree
+
+
+recording decisions and preferences?
+	- first step: read existing preferences file
+		- online display of whether preferred tree is currently in or out
+	- then: read existing decisions file
+		- mode/button to apply existing decisions and see how far that goes towards disambiguating
+		- 'decisions' file format:
+			d-state
+				1 = explicitly require this labeling
+				2 = explicitly ban this labeling
+				3 = implicitly require this labeling
+				4 = implicitly ban this labeling
+					... itsdb code that generates it:
+						1: 'toggle' == t
+						2: 'toggle' == null
+						3: 'toggle' is neither and 'state' is t
+						4; 'toggle' is neither and 'state' is null
+				... we may as well only look at types 1 and 2 for now.
+			d-type
+				2 = type	(apparently the lexical type of a lexeme)
+				3 = constituent	(apparently a rule dominating that constituent)
+			d-key
+				symbolic label for the span... tends to be all caps :-/
+			d-value
+				sentence text with a || showing constituent break
+			d-start and  d-end
+				appear to match our token-based start/end positions
+	- then: button to write a new decisions/preferences file pair
