@@ -1,7 +1,7 @@
-//var svg = element("svg");
-//svg.setAttribute("version", "1.1");
-//document.getElementById("tree-scroller").appendChild(svg);
-//svg.style.background = "white";
+var svg = element("svg");
+svg.setAttribute("version", "1.1");
+document.getElementById("disc-scroller").appendChild(svg);
+svg.style.background = "white";
 
 function element(type)
 {
@@ -18,10 +18,10 @@ function container()
 function line(x1,y1,x2,y2)
 {
 	var l = element("line");
-	l.setAttribute("x1", x1);
-	l.setAttribute("x2", x2);
-	l.setAttribute("y1", y1);
-	l.setAttribute("y2", y2);
+	l.setAttributeNS(null, "x1", x1);
+	l.setAttributeNS(null, "x2", x2);
+	l.setAttributeNS(null, "y1", y1);
+	l.setAttributeNS(null, "y2", y2);
 	l.style.stroke = "black";
 	return l;
 }
@@ -60,14 +60,14 @@ function render_tree(t)
 	nw = n.bbx.width;
 	nh = n.bbx.height;
 	if(nw > wtot)wtot = nw;
-	n.setAttribute("x", wtot / 2 - nw / 2);
-	n.setAttribute("y", nh * 2/3);
+	n.setAttributeNS(null, "x", wtot / 2 - nw / 2);
+	n.setAttributeNS(null, "y", nh * 2/3);
 	g.appendChild(n);
 	var	dtr_x = wtot / 2 - dtrs_wtot / 2;
 	for(var x in dtrs)
 	{
-		dtrs[x].setAttribute("y", nh + DAUGHTER_VSPACE);
-		dtrs[x].setAttribute("x", dtr_x);
+		dtrs[x].setAttributeNS(null, "y", nh + DAUGHTER_VSPACE);
+		dtrs[x].setAttributeNS(null, "x", dtr_x);
 		g.appendChild(dtrs[x]);
 		g.appendChild(line(wtot/2, nh, dtr_x + dtrs[x].mywidth/2, nh + DAUGHTER_VSPACE - 1));
 		dtr_x += dtrs[x].mywidth + DAUGHTER_HSPACE;
@@ -78,10 +78,24 @@ function render_tree(t)
 
 function show_trees()
 {
-/*
 	var total_h = 0;
 	var max_w = 0;
 	while(svg.firstChild)svg.removeChild(svg.firstChild);
+
+	var availWidth = 400, availHeight = 400;
+
+	if(message.trees.length > 0)
+	{
+		var host = document.getElementById("disc-scroller");
+		host.appendChild(svg);
+		availWidth = host.clientWidth - 18;
+		availHeight = host.clientHeight - 18;
+	}
+	else if(svg.parentNode)svg.parentNode.removeChild(svg);
+
+	var myg = element("g");
+	svg.appendChild(myg);
+
 	//for(var x in message.trees)
 	if(message.trees.length > 0)
 	{
@@ -89,16 +103,44 @@ function show_trees()
 	{
 		var	t = render_tree(message.trees[x]);
 		t.setAttribute("y", total_h);
-		svg.appendChild(t);
+		myg.appendChild(t);
 		var b = t.getBBox();
 		total_h += b.height;
 		if(b.width > max_w)max_w = b.width;
 	}
 	}
 
+	var scale = availWidth / max_w;
+	if(availHeight / total_h < scale)scale = availHeight / total_h;
+	if(scale > 1.0)scale = 1.0;
+	myg.setAttribute("transform", "scale("+scale+")");
+	svg.style.width = availWidth + "px";
+	svg.style.height = availHeight + "px";
 	svg.setAttribute("width", max_w);
 	svg.setAttribute("height", total_h);
-*/
+
+	var ds = document.getElementById("disc-scroller");
+	var ov = document.getElementById("overlay");
+
+	svg.onclick = function()
+	{
+		if(svg.parentNode == ds)
+		{
+			ov.appendChild(svg);
+			ov.style.display = "block";
+			myg.setAttribute("transform", "scale(1)");
+			svg.style.width = max_w + "px";
+			svg.style.height = total_h + "px";
+		}
+		else
+		{
+			ds.appendChild(svg);
+			ov.style.display = "none";
+			myg.setAttribute("transform", "scale("+scale+")");
+			svg.style.width = availWidth + "px";
+			svg.style.height = availHeight + "px";
+		}
+	}
 
 	var html = message.ntrees + " remaining.";
 	if(message.oldgold)
@@ -161,12 +203,25 @@ function hilight(x)
 
 function cancel_hilight()
 {
+	if(first_hi)
+	{
+		dehilight();
+		first_hi = null;
+	}
+}
+
+function no_hilight()
+{
 	dehilight();
 	first_hi = null;
+	dspan = "";
+	dspanfrom = dspanto = null;
+	refilter();
 }
 
 function begin_hilight_words(x)
 {
+	dehilight();
 	first_hi = x;
 	hilight(x);
 }
@@ -177,9 +232,14 @@ function drag_hilight_words(x)
 		hilight(x);
 }
 
+var dspanto;
+var dspanfrom;
+var dspan;
+
 function end_hilight_words(x)
 {
 	var from = 9999, to = 0;
+	first_hi = null;
 	for(var x in hilight_set)
 	{
 		var wf = hilight_set[x].tokFrom;
@@ -196,7 +256,6 @@ function end_hilight_words(x)
 		dspanto = to;
 		refilter();
 	}
-	cancel_hilight();
 }
 
 function show_sentence()
@@ -206,6 +265,8 @@ function show_sentence()
 		function(x,y) { return x.from - y.from; } );
 	var chunks = message.chunks;
 	var sentence = document.getElementById("sentence");
+
+	hilight_set = [];
 
 	var ci = 0;
 	bars = [];
@@ -257,6 +318,14 @@ function show_sentence()
 
 		d.tokFrom = tokens[x].from;
 		d.tokTo = tokens[x].to;
+		if(dspanto)
+		{
+			if(d.tokFrom >= dspanfrom && d.tokTo <= dspanto)
+			{
+				hilight_set.push(d);
+				d.style.color = "red";
+			}
+		}
 		var mobile = (/iphone|ipad|ipod|android|blackberry|mini|windows\sce|palm/i.test(navigator.userAgent.toLowerCase()));  
 		if(mobile)
 		{
@@ -270,12 +339,14 @@ function show_sentence()
 		}
 		else
 		{
-			d.onmousedown = function(x){return function(ev){ev.preventDefault();begin_hilight_words(x);}}(d);
-			d.onmousemove = function(x){return function(ev){ev.preventDefault();drag_hilight_words(x);}}(d);
-			d.onmouseup = function(x){return function(ev){ev.preventDefault();end_hilight_words(x);}}(d);
+			d.onmousedown = function(x){return function(ev){ev.preventDefault();begin_hilight_words(x);if(ev.stopPropagaton)ev.stopPropagation(); else ev.cancelBubble = true;}}(d);
+			d.onmousemove = function(x){return function(ev){ev.preventDefault();drag_hilight_words(x);if(ev.stopPropagaton)ev.stopPropagation(); else ev.cancelBubble = true;}}(d);
+			d.addEventListener("mouseup", function(x){return function(ev){ev.preventDefault();end_hilight_words(x);if(ev.stopPropagaton)ev.stopPropagation(); else ev.cancelBubble = true;}}(d), false);
 		}
+		d.addEventListener("click", function(x){return function(ev){ev.preventDefault();if(ev.stopPropagaton)ev.stopPropagation(); else ev.cancelBubble = true;}}(d), false);
 	}
 	window.onmouseup = cancel_hilight;
+	document.getElementById("sentence").onclick = no_hilight;
 }
 
 function toggle_old()

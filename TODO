@@ -4,6 +4,8 @@ goal: either web-based or lui-based UI where user does:
 	3. the user is presented with a display of the sentence, and can mak decisions
 	4. record decisions to the tsdb profile (or a copy of it)
 
+necessary: verify that there is at least one *real* (reconstructable) tree left at each step, or *minimally* before saving
+
 improvements:
 	- option to show *all* remaining discriminants (or, say, up to 20)
 	- (option to?) show lexical types instead of lexeme names

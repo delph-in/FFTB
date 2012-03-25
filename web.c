@@ -245,6 +245,66 @@ int	tree_satisfies_constraints(struct tree	*t, struct constraint	*c, int	nc)
 	return 1;
 }
 
+int	has_unpacking(struct edge	*e)
+{
+	int	i;
+	if(e->unpackings)return 1;
+	for(i=0;i<e->npack;i++)
+		if(e->pack[i]->unpackings)return 1;
+	return 0;
+}
+
+char	*get_uclabel(char	*stack, int	k)
+{
+	while(k-- > 0 && stack)
+	{
+		stack = strchr(stack, '@');
+		if(stack)stack++;
+	}
+	if(!stack)return NULL;
+	char	*rv = strdup(stack);
+	if(strchr(rv, '@'))
+		*strchr(rv, '@') = 0;
+	return rv;
+}
+
+void	send_tree(FILE	*f, struct edge	*e, int	ucdepth)
+{
+	int	i;
+	// 'e' and its packed edges together have exactly one unpacking amongst them
+	if(!e->unpackings)
+	{
+		for(i=0;i<e->npack;i++)
+			if(e->pack[i]->unpackings)break;
+		assert(i < e->npack);
+		e = e->pack[i];
+	}
+	assert(e->unpackings == 1);
+
+	char	*lab = get_uclabel(e->sign, ucdepth);
+	char	*esc = qescape(lab);
+	char	*l2 = get_uclabel(e->sign, ucdepth+1);
+	if(l2)
+	{
+		free(l2);
+		fprintf(f, "{label: \"%s\", daughters: [", esc);
+		send_tree(f, e, ucdepth+1);
+		fprintf(f, "]}");
+	}
+	else
+	{
+		fprintf(f, "{label: \"%s\", daughters: [", esc);
+		for(i=0;i<e->ndaughters;i++)
+		{
+			if(i)fprintf(f, ",");
+			send_tree(f, e->daughter[i], 0);
+		}
+		fprintf(f, "]}");
+	}
+	free(esc);
+	free(lab);
+}
+
 void	web_session(FILE	*f, char	*query)
 {
 	int	id = atoi(query);
@@ -295,7 +355,6 @@ void	web_session(FILE	*f, char	*query)
 	char	*esc = qescape(S->input);
 	fprintf(f, "item: \"%s\",\n", esc);
 	free(esc);
-	fprintf(f, "trees: [],\n");
 	long long	ntrees = count_remaining_trees(S->parse, c, nc);
 	fprintf(f, "ntrees: %lld,\n", ntrees);
 	fprintf(f, "tokens: [");
@@ -350,6 +409,31 @@ void	web_session(FILE	*f, char	*query)
 		}
 		fprintf(f, "],");
 	}
+	if(have_span)
+	{
+		for(i=0;i<S->parse->nedges;i++)
+		{
+			struct edge	*e = S->parse->edges[i];
+			if(e->from == from && e->to == to && e->solutions == ntrees && e->unpackings == 1)
+				break;	// this is the root of the tree that we want to send back.
+		}
+		if(i<S->parse->nedges)
+		{
+			fprintf(f, "trees: [");
+			send_tree(f, S->parse->edges[i], 0);
+			fprintf(f, "],");
+		}
+	}
+	else if(ntrees == 1)
+	{
+		fprintf(f, "trees: [");
+		for(i=0;i<S->parse->nroots;i++)
+			if(has_unpacking(S->parse->roots[i]))break;
+		assert(i < S->parse->nroots);
+		send_tree(f, S->parse->roots[i], 0);
+		fprintf(f, "],");
+	}
+	else fprintf(f, "trees: [],\n");
 	fprintf(f, "end:0}\n");
 	fclose(f);
 	/*for(i=0;i<S->parse->nedges;i++)
@@ -424,9 +508,9 @@ struct parse	*read_forest_from_ace(FILE	*p, wchar_t	*winput)
 
 	while(!feof(p))
 	{
-		char	line[1024];
-		wchar_t	text[1024];
-		if(!fgets(line, 1023, p))break;
+		char	line[102400];
+		wchar_t	text[102400];
+		if(!fgets(line, 102300, p))break;
 		if(line[0]=='\n')continue;
 		if(!strncmp(line, "SKIP:", 5))
 		{

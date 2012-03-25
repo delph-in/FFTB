@@ -44,14 +44,10 @@ shew_sentence = 0;
 
 function got_reply()
 {
-	show_trees();
 	show_decisions();
 	show_discriminants();
-	//if(!shew_sentence)
-	//{
-		//shew_sentence = 1;
-		show_sentence();
-	//}
+	show_sentence();
+	show_trees();
 }
 
 function refilter()
