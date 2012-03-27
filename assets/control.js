@@ -31,6 +31,15 @@ function get_candidates()
 				eval("message = " + xr.responseText);
 				got_reply();
 			}
+			else if(xr.status == 0)
+			{
+				// happens when the browser cancels the request because it is moving to another page...
+				return;
+			}
+			else if(xr.status == 404)
+			{
+				window.history.back();
+			}
 			else
 			{
 				alert("unexpected http code: " + xr.status);
@@ -48,6 +57,7 @@ function got_reply()
 	show_discriminants();
 	show_sentence();
 	show_trees();
+	show_item_and_profile_id();
 }
 
 function refilter()

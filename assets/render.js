@@ -373,8 +373,7 @@ function show_sentence()
 		d.addEventListener("click", function(x){return function(ev){ev.preventDefault();if(ev.stopPropagaton)ev.stopPropagation(); else ev.cancelBubble = true;}}(d), false);
 	}
 	window.onmouseup = cancel_hilight;
-	document.getElementById("sentence").onclick = no_hilight;
-	document.getElementById("counters").onclick = no_hilight;
+	document.getElementById("yellow").onclick = no_hilight;
 }
 
 function toggle_old()
@@ -491,4 +490,13 @@ function show_discriminants()
 		dd.onclick = function(x){return function(ev){select_discriminant(x.discriminant);}}(dd);
 		div.appendChild(dd);
 	}
+}
+
+function show_item_and_profile_id()
+{
+	document.getElementById("profile-id").innerHTML = message.profile_id;
+	document.getElementById("item-id").innerHTML = message.item_id;
+	document.getElementById("nextlink").href = "next" + window.location.search;
+	document.getElementById("prevlink").href = "prev" + window.location.search;
+	document.getElementById("listlink").href = "/private" + message.profile_id;
 }

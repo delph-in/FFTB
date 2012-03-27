@@ -351,6 +351,56 @@ void	send_tree(FILE	*f, struct tb_edge	*e, int	ucdepth)
 	free(lab);
 }
 
+void	web_nav(FILE	*f, char	*query)
+{
+	assert(strlen(query) >= 6);
+	int	id = atoi(query+6);
+	struct session	*S = get_session(id);
+	if(!S) { webreply(f, "404 no such session"); return; }
+	int dir = 0;
+	if(!strncmp(query, "/next?", 6))dir = +1;
+	else dir = -1;
+
+	char	fullpath[10240];
+	sprintf(fullpath, "%s/%s", tsdb_home_path, S->profile_id);
+	struct tsdb	*profile = load_tsdb(fullpath);
+	if(!profile) { webreply(f, "500 unable to read TSDB profile"); return; }
+
+	char	*this_id = S->item_id;
+
+	struct relation	*items = get_relation(profile, "item");
+	assert(items);
+	int	item_input = get_field(items, "i-input", "string");
+	int	item_id = get_field(items, "i-id", "integer");
+	int i;
+	for(i=0;i<items->ntuples;i++)
+		if(!strcmp(items->tuples[i][item_id], this_id))break;
+	if(i == items->ntuples)
+	{
+		tsdb_free_profile(profile);
+		webreply(f, "500 couldn't find that item");
+		return;
+	}
+
+	i += dir;
+	if(i < 0 || i >= items->ntuples)
+	{ 
+		tsdb_free_profile(profile);
+		webreply(f, "404 no such item");
+		return;
+	}
+
+	char	*new_id = items->tuples[i][item_id];
+	printf("old item id '%s' + dir %d = new item id '%s'\n", this_id, dir, new_id);
+	fprintf(f, "HTTP/1.1 302 Moved\r\n");
+	char	*cgi = cgiencode(S->profile_id);
+	fprintf(f, "Location: /private/parse?profile=%s&id=%s\r\n\r\nRedirecting...\n",
+		cgi, new_id);
+	free(cgi);
+	fclose(f);
+	tsdb_free_profile(profile);
+}
+
 void	web_session(FILE	*f, char	*query)
 {
 	int	id = atoi(query);
@@ -395,12 +445,18 @@ void	web_session(FILE	*f, char	*query)
 	}
 	fflush(stdout);
 
+	void	send_escaped(char	*key, char	*value)
+	{
+		char	*esc = qescape(value);
+		fprintf(f, "%s: \"%s\",\n", key, esc);
+		free(esc);
+	}
 
 	http_headers(f, "text/javascript");
 	fprintf(f, "{");
-	char	*esc = qescape(S->input);
-	fprintf(f, "item: \"%s\",\n", esc);
-	free(esc);
+	send_escaped("profile_id", S->profile_id);
+	send_escaped("item_id", S->item_id);
+	send_escaped("item", S->input);
 	long long	ntrees = count_remaining_trees(S->parse, c, nc);
 	fprintf(f, "ntrees: %lld,\n", ntrees);
 	fprintf(f, "tokens: [");
@@ -515,7 +571,7 @@ FILE	*invoke_ace(char	*input)
 	close(fd);
 	char	command[1024];
 #define	ERG_PATH	"/home/sweaglesw/cdev/ace/erg-1010.dat"
-	sprintf(command, "~/cdev/ace/ace -g " ERG_PATH " -O %s", tmpn);
+	sprintf(command, "~/cdev/ace/ace -g " ERG_PATH " -O %s -r 'root_strict root_inffrag root_informal root_frag'", tmpn);
 	return popen(command, "r");
 }
 
@@ -894,9 +950,8 @@ void	web_parse(FILE	*f, char	*cgiargs)
 
 	char	fullpath[10240];
 	sprintf(fullpath, "%s/%s", tsdb_home_path, path);
-	free(path);
 	struct tsdb	*profile = load_tsdb(fullpath);
-	if(!profile) { webreply(f, "500 unable to read TSDB profile"); free(id); return; }
+	if(!profile) { webreply(f, "500 unable to read TSDB profile"); free(id); free(path); return; }
 	struct relation	*items = get_relation(profile, "item");
 	assert(items);
 	int	item_input = get_field(items, "i-input", "string");
@@ -997,7 +1052,7 @@ void	web_parse(FILE	*f, char	*cgiargs)
 	struct timeval	start, end;
 	gettimeofday(&start, NULL);
 	FILE	*p = invoke_ace(input);
-	if(!p) { webreply(f, "500 unable to invoke parser"); return; }
+	if(!p) { webreply(f, "500 unable to invoke parser"); free(id); free(path); return; }
 
 	html_headers(f, "ACE Treebanker");
 	fprintf(f, "Parsing... \n"); fflush(f);
@@ -1022,6 +1077,8 @@ void	web_parse(FILE	*f, char	*cgiargs)
 		P->nedges, P->nroots);
 
 	struct session	*S = calloc(sizeof(*S),1);
+	S->profile_id = strdup(path);
+	S->item_id = strdup(id);
 	S->input = input;	// already strdup'd
 	S->parse = P;
 	S->id = id_allocator++;
@@ -1034,9 +1091,11 @@ void	web_parse(FILE	*f, char	*cgiargs)
 
 	fprintf(f, "Session ID = %d<br/>\n", S->id);
 	fprintf(f, "<a href='session?%d'>Enter Session</a><br/>\n", S->id);
+	fprintf(f, "<script>window.location = '/private/session?%d';</script>\n", S->id);
 	html_footers(f);
 
 	free(id);
+	free(path);
 }
 
 /* system for picking a profile and a sentence */
@@ -1131,6 +1190,8 @@ void	web_callback(int	fd, void	*ptr, struct sockaddr_in	addr)
 			webfile(f, "text/javascript", "assets/control.js");
 		else if(!strncmp(path, "/session?", 9))
 			webfile(f, "text/html", "assets/index.html");
+		else if(!strncmp(path, "/next?", 6) || !strncmp(path, "/prev?", 6))
+			web_nav(f, path);
 		else web_slash(f, path);
 		//else webreply(f, "404 not found");
 	}
@@ -1143,12 +1204,18 @@ void	web_callback(int	fd, void	*ptr, struct sockaddr_in	addr)
 	fflush(stdout);
 }
 
+void	pipe_handler(int s)
+{
+	signal(SIGPIPE, pipe_handler);
+}
+
 main(int	argc, char	*argv[])
 {
 	int	fd = tcpip_list(9080);
 	setlocale(LC_ALL, "");
 	register_server_fd(fd, web_callback, NULL);
 	signal(SIGINT, quit_server_event_loop);
+	signal(SIGPIPE, pipe_handler);
 	ace_load_grammar(ERG_PATH);
 	//daemonize("web.log");
 	server_event_loop();

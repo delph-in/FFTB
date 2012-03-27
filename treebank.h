@@ -44,6 +44,7 @@ struct constraint
 
 struct session
 {
+	char	*profile_id, *item_id;
 	char	*input;
 	struct parse	*parse;
 	int		id;
