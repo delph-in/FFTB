@@ -12,6 +12,9 @@
 #include	<liba.h>
 #include	<tsdb.h>
 
+#include	<ace/lexicon.h>
+#include	<ace/hash.h>
+
 #include	"tree.h"
 #include	"treebank.h"
 
@@ -93,7 +96,7 @@ int	incompatible(int	from, int	to, char	*uc_label, struct constraint	c)
 	else return 0;	// for constraintAbsent, crossing brackets may not be a concern...
 }
 
-long long	count_remaining_trees_r(struct edge	*e, int	nc, struct constraint	*c)
+long long	count_remaining_trees_r(struct tb_edge	*e, int	nc, struct constraint	*c)
 {
 	long long	n = 1;
 	int	i, bad = 0;
@@ -115,7 +118,7 @@ long long	count_remaining_trees_r(struct edge	*e, int	nc, struct constraint	*c)
 	return n;
 }
 
-void	count_solutions_r(struct edge	*e, long long outside)
+void	count_solutions_r(struct tb_edge	*e, long long outside)
 {
 	// assuming 'e' is used in 'outside' unique settings,
 	// compute how many solutions 'e' appears in,
@@ -129,7 +132,7 @@ void	count_solutions_r(struct edge	*e, long long outside)
 		e->solutions += outside * e->unpackings;
 		for(i=0;i<e->ndaughters;i++)
 		{
-			struct edge	*d = e->daughter[i];
+			struct tb_edge	*d = e->daughter[i];
 			long long	du = d->unpackings;
 			for(j=0;j<d->npack;j++)
 				du += d->pack[j]->unpackings;
@@ -162,7 +165,7 @@ void	compute_linkage(struct parse	*P, char	*linkage, int	max, long long N)
 	int i, j;
 	for(i=0;i<P->nedges;i++)
 	{
-		struct edge	*e = P->edges[i];
+		struct tb_edge	*e = P->edges[i];
 		//printf("edge #%d had %lld solutions out of %lld\n", e->id, e->solutions, N);
 		if(e->solutions == N && e->unpackings == 1)
 		{
@@ -178,27 +181,33 @@ void	compute_linkage(struct parse	*P, char	*linkage, int	max, long long N)
 void	find_discriminants(FILE	*f, struct parse	*P, int	from, int	to, int	ntrees)
 {
 	int	i, j;
+	int have_span = (from == -1)?0:1;
 	int	nd = 0;
 	struct disc
 	{
 		char	*sign;
 		int		count;
+		int		from, to;
+		int	lexical;
 	}	*d = NULL;
 
 	for(i=0;i<P->nedges;i++)
 	{
-		struct edge	*e = P->edges[i];
-		if(e->from != from || e->to != to)continue;
+		struct tb_edge	*e = P->edges[i];
+		if(have_span && (e->from != from || e->to != to))continue;
 		//printf("discriminant: edge #%d [%d - %d] %s has %lld trees\n", e->id, e->from, e->to, e->sign, e->solutions);
 		if(e->solutions == 0 || e->solutions == ntrees)continue;
 		for(j=0;j<nd;j++)
-			if(!strcmp(d[j].sign, e->sign))break;
+			if(!strcmp(d[j].sign, e->sign) && e->from == d[j].from && e->to == d[j].to && ((e->ndaughters==0)?1:0) == d[j].lexical)break;
 		if(j==nd)
 		{
 			nd++;
 			d = realloc(d, sizeof(struct disc)*nd);
 			d[nd-1].sign = e->sign;
 			d[nd-1].count = 0;
+			d[nd-1].from = e->from;
+			d[nd-1].to = e->to;
+			d[nd-1].lexical = (e->ndaughters==0)?1:0;
 		}
 		d[j].count += e->solutions;
 		//printf("%s now has %d\n", d[j].sign, d[j].count);
@@ -212,11 +221,35 @@ void	find_discriminants(FILE	*f, struct parse	*P, int	from, int	to, int	ntrees)
 	for(i=0;i<nd;i++)
 	{
 		if(i > 0)fprintf(f, ",");
+		//char	*le_typed = d[i].lexical?to_letype_sign(d[i].sign):strdup(d[i].sign);
 		char *esc = qescape(d[i].sign);
-		fprintf(f, "{sign:\"%s\",count:%d}", esc, d[i].count);
+		//char *esc2 = qescape(le_typed);
+		fprintf(f, "{sign:\"%s\",count:%d,from:%d,to:%d}", esc, d[i].count, d[i].from, d[i].to);
+		//free(esc2);
 		free(esc);
+		//free(le_typed);
 	}
 	if(d)free(d);
+}
+
+struct lexeme	*get_lex_by_name_hash(char	*name)
+{
+	static struct hash	*h = NULL;
+	if(!h)h = hash_new("lexicon");
+
+	struct lexeme	*l = hash_find(h, name);
+	if(l)return l;
+
+	l = get_lex_by_name(name);
+	if(l) { hash_add(h, strdup(name), l); return l; }
+
+	int i;
+	for(i=0;i<ngeneric_les;i++)
+		if(!strcmp(name, generic_les[i]->word))
+			{ hash_add(h, strdup(name), generic_les[i]); return generic_les[i]; }
+
+	fprintf(stderr, "unknown lexeme '%s'!\n", name);
+	return NULL;
 }
 
 int	tree_satisfies_constraints(struct tree	*t, struct constraint	*c, int	nc)
@@ -224,13 +257,26 @@ int	tree_satisfies_constraints(struct tree	*t, struct constraint	*c, int	nc)
 	int	i;
 	char	uc_label[1024] = "";
 	if(!t->ndaughters)return 1;	// ignore gold surface/token nodes
-	strcpy(uc_label, t->label);
-	while(t->ndaughters == 1 && t->daughters[0]->ndaughters)
+	//strcpy(uc_label, t->label);
+	//while(t->ndaughters == 1 && t->daughters[0]->ndaughters)
+	while(1)
 	{
-		t = t->daughters[0];
-		strcat(uc_label, "@");
+		if(*uc_label)strcat(uc_label, "@");
+		if(!t->daughters[0]->ndaughters)
+		{
+			// 't' is a lexeme
+			struct lexeme	*lex = get_lex_by_name_hash(t->label);
+			assert(lex);
+			char	*lt = lex->lextype->name;
+			strcat(uc_label, lt);
+			break;
+		}
+		// 't' is not a lexeme
 		strcat(uc_label, t->label);
+		if(t->ndaughters > 1)break;	// non-unary
+		t = t->daughters[0];	// unary; repeat
 	}
+	// 't' is the bottom of a unary chain
 	for(i=0;i<nc;i++)
 	{
 		if(incompatible(t->tfrom, t->tto, uc_label, c[i]))
@@ -245,7 +291,7 @@ int	tree_satisfies_constraints(struct tree	*t, struct constraint	*c, int	nc)
 	return 1;
 }
 
-int	has_unpacking(struct edge	*e)
+int	has_unpacking(struct tb_edge	*e)
 {
 	int	i;
 	if(e->unpackings)return 1;
@@ -268,7 +314,7 @@ char	*get_uclabel(char	*stack, int	k)
 	return rv;
 }
 
-void	send_tree(FILE	*f, struct edge	*e, int	ucdepth)
+void	send_tree(FILE	*f, struct tb_edge	*e, int	ucdepth)
 {
 	int	i;
 	// 'e' and its packed edges together have exactly one unpacking amongst them
@@ -287,13 +333,13 @@ void	send_tree(FILE	*f, struct edge	*e, int	ucdepth)
 	if(l2)
 	{
 		free(l2);
-		fprintf(f, "{label: \"%s\", daughters: [", esc);
+		fprintf(f, "{label: \"%s\", from:%d, to:%d, daughters: [", esc, e->from, e->to);
 		send_tree(f, e, ucdepth+1);
 		fprintf(f, "]}");
 	}
 	else
 	{
-		fprintf(f, "{label: \"%s\", daughters: [", esc);
+		fprintf(f, "{label: \"%s\", from:%d, to:%d, daughters: [", esc, e->from, e->to);
 		for(i=0;i<e->ndaughters;i++)
 		{
 			if(i)fprintf(f, ",");
@@ -391,6 +437,7 @@ void	web_session(FILE	*f, char	*query)
 	fprintf(f, "discriminants: [");
 	if(have_span)
 		find_discriminants(f, S->parse, from, to, ntrees);
+	else find_discriminants(f, S->parse, -1, -1, ntrees);
 	fprintf(f, "],");
 	if(S->pref_tree)
 	{
@@ -413,7 +460,7 @@ void	web_session(FILE	*f, char	*query)
 	{
 		for(i=0;i<S->parse->nedges;i++)
 		{
-			struct edge	*e = S->parse->edges[i];
+			struct tb_edge	*e = S->parse->edges[i];
 			if(e->from == from && e->to == to && e->solutions == ntrees && e->unpackings == 1)
 				break;	// this is the root of the tree that we want to send back.
 		}
@@ -423,6 +470,7 @@ void	web_session(FILE	*f, char	*query)
 			send_tree(f, S->parse->edges[i], 0);
 			fprintf(f, "],");
 		}
+		else fprintf(f, "trees: [],");
 	}
 	else if(ntrees == 1)
 	{
@@ -438,7 +486,7 @@ void	web_session(FILE	*f, char	*query)
 	fclose(f);
 	/*for(i=0;i<S->parse->nedges;i++)
 	{
-		struct edge	*e = S->parse->edges[i];
+		struct tb_edge	*e = S->parse->edges[i];
 		printf("edge #%d: [%d-%d] %s  has %lld solutions with %lld unpackings\n", e->id, e->from, e->to, e->sign, e->solutions, e->unpackings);
 	}
 	for(i=0;i<S->parse->nroots;i++)
@@ -466,7 +514,8 @@ FILE	*invoke_ace(char	*input)
 	write(fd, "\n", 1);
 	close(fd);
 	char	command[1024];
-	sprintf(command, "~/cdev/ace/ace -g ~/cdev/ace/erg-1010.dat -O %s", tmpn);
+#define	ERG_PATH	"/home/sweaglesw/cdev/ace/erg-1010.dat"
+	sprintf(command, "~/cdev/ace/ace -g " ERG_PATH " -O %s", tmpn);
 	return popen(command, "r");
 }
 
@@ -474,21 +523,21 @@ struct parse	*read_forest_from_ace(FILE	*p, wchar_t	*winput)
 {
 	struct parse	*P = calloc(sizeof(*P),1);
 
-	struct edge	*make_edge(int	id)
+	struct tb_edge	*make_edge(int	id)
 	{
-		struct edge	*e = calloc(sizeof(*e),1);
+		struct tb_edge	*e = calloc(sizeof(*e),1);
 		e->id = id;
 		return e;
 	}
 
-	struct edge	*enqueue(struct edge	***L, int	*N, struct edge	*e)
+	struct tb_edge	*enqueue(struct tb_edge	***L, int	*N, struct tb_edge	*e)
 	{
 		(*N)++;
-		(*L) = realloc((*L), sizeof(struct edge*)*(*N));
+		(*L) = realloc((*L), sizeof(struct tb_edge*)*(*N));
 		return (*L)[(*N)-1] = e;
 	}
 
-	struct edge	*get_edge(int	id)
+	struct tb_edge	*get_edge(int	id)
 	{
 		int i;
 		for(i=0;i<P->nedges;i++)
@@ -496,12 +545,12 @@ struct parse	*read_forest_from_ace(FILE	*p, wchar_t	*winput)
 		return enqueue(&P->edges, &P->nedges, make_edge(id));
 	}
 
-	void	pack_edge(struct edge	*host, struct edge	*pack)
+	void	pack_edge(struct tb_edge	*host, struct tb_edge	*pack)
 	{
 		enqueue(&host->pack, &host->npack, pack);
 	}
 
-	void	daughter_edge(struct edge	*host, struct edge	*daughter)
+	void	daughter_edge(struct tb_edge	*host, struct tb_edge	*daughter)
 	{
 		enqueue(&host->daughter, &host->ndaughters, daughter);
 	}
@@ -521,9 +570,9 @@ struct parse	*read_forest_from_ace(FILE	*p, wchar_t	*winput)
 		int from, to, cfrom, cto;
 		if(1 == sscanf(line, "root %d\n", &id))
 		{
-			struct edge	*e = get_edge(id);
+			struct tb_edge	*e = get_edge(id);
 			P->nroots++;
-			P->roots = realloc(P->roots, sizeof(struct edge*)*P->nroots);
+			P->roots = realloc(P->roots, sizeof(struct tb_edge*)*P->nroots);
 			P->roots[P->nroots-1] = e;
 		}
 		else if(5 == sscanf(line, "token %d %d %d %d %l[^\n]\n", &from, &to, &cfrom, &cto, text))
@@ -569,7 +618,7 @@ struct parse	*read_forest_from_ace(FILE	*p, wchar_t	*winput)
 			lp++;
 			assert(*lp=='[');
 			lp++;
-			struct edge	*e = get_edge(id);
+			struct tb_edge	*e = get_edge(id);
 			e->sign = strdup(sign);
 			e->from = from;
 			e->to = to;
@@ -583,7 +632,7 @@ struct parse	*read_forest_from_ace(FILE	*p, wchar_t	*winput)
 				if(*end==']')done = 1;
 				*end = 0;
 				int	pid = atoi(lp);
-				struct edge	*pe = get_edge(pid);
+				struct tb_edge	*pe = get_edge(pid);
 				pack_edge(e, pe);
 				lp = end+1;
 			}
@@ -604,7 +653,7 @@ struct parse	*read_forest_from_ace(FILE	*p, wchar_t	*winput)
 				if(*end==')')done=1;
 				*end = 0;
 				int	did = atoi(lp);
-				struct edge	*de = get_edge(did);
+				struct tb_edge	*de = get_edge(did);
 				daughter_edge(e, de);
 				lp = end+1;
 			}
@@ -633,11 +682,11 @@ struct ucl
 	struct uc
 	{
 		int	n;
-		struct edge	**e;
+		struct tb_edge	**e;
 	}	*chains;
 };
 
-struct ucl	*unary_closure(struct edge	*e)
+struct ucl	*unary_closure(struct tb_edge	*e)
 {
 	struct ucl	*u = NULL;
 	if(e->ndaughters != 1)
@@ -646,7 +695,7 @@ struct ucl	*unary_closure(struct edge	*e)
 		u->nchains = 1;
 		u->chains = malloc(sizeof(struct uc));
 		u->chains[0].n = 1;
-		u->chains[0].e = malloc(sizeof(struct edge*));
+		u->chains[0].e = malloc(sizeof(struct tb_edge*));
 		u->chains[0].e[0] = e;
 	}
 	else
@@ -657,8 +706,8 @@ struct ucl	*unary_closure(struct edge	*e)
 		{
 			struct uc	*c = &u->chains[i];
 			c->n++;
-			c->e = realloc(c->e, sizeof(struct edge*)*c->n);
-			memmove(c->e+1, c->e, sizeof(struct edge*)*(c->n-1));
+			c->e = realloc(c->e, sizeof(struct tb_edge*)*c->n);
+			memmove(c->e+1, c->e, sizeof(struct tb_edge*)*(c->n-1));
 			c->e[0] = e;
 		}
 	}
@@ -700,19 +749,19 @@ int	same_chain(struct uc	x, struct uc	y)
 	return 1;
 }
 
-struct edge	*get_chain_edge(struct parse	*Pout, struct uc	**Chains, struct uc	c);
-struct edge	*get_ucl_edge(struct parse	*Pout, struct uc	**Chains, struct ucl	*u)
+struct tb_edge	*get_chain_edge(struct parse	*Pout, struct uc	**Chains, struct uc	c);
+struct tb_edge	*get_ucl_edge(struct parse	*Pout, struct uc	**Chains, struct ucl	*u)
 {
-	struct edge	*h = get_chain_edge(Pout, Chains, u->chains[0]);
+	struct tb_edge	*h = get_chain_edge(Pout, Chains, u->chains[0]);
 	int i;
 	if(!h->npack)
 	{
 		// only put the rest of the chains onto the packing list once
 		for(i=1;i<u->nchains;i++)
 		{
-			struct edge	*p = get_chain_edge(Pout, Chains, u->chains[i]);
+			struct tb_edge	*p = get_chain_edge(Pout, Chains, u->chains[i]);
 			h->npack++;
-			h->pack = realloc(h->pack, sizeof(struct edge*)*h->npack);
+			h->pack = realloc(h->pack, sizeof(struct tb_edge*)*h->npack);
 			h->pack[h->npack-1] = p;
 		}
 	}
@@ -723,7 +772,7 @@ struct edge	*get_ucl_edge(struct parse	*Pout, struct uc	**Chains, struct ucl	*u)
 	return h;
 }
 
-struct edge	*get_chain_edge(struct parse	*Pout, struct uc	**Chains, struct uc	c)
+struct tb_edge	*get_chain_edge(struct parse	*Pout, struct uc	**Chains, struct uc	c)
 {
 	int i;
 	for(i=0;i<Pout->nedges;i++)
@@ -732,15 +781,15 @@ struct edge	*get_chain_edge(struct parse	*Pout, struct uc	**Chains, struct uc	c)
 			free(c.e);
 			return Pout->edges[i];
 		}
-	struct edge	*e = calloc(sizeof(*e),1);
+	struct tb_edge	*e = calloc(sizeof(*e),1);
 	e->from = c.e[0]->from;
 	e->to = c.e[0]->to;
 	e->id = Pout->nedges+1;
 	e->sign = chain_sign(c);
 	e->ndaughters = c.e[c.n-1]->ndaughters;
-	e->daughter = calloc(sizeof(struct edge*),e->ndaughters);
+	e->daughter = calloc(sizeof(struct tb_edge*),e->ndaughters);
 	Pout->nedges++;
-	Pout->edges = realloc(Pout->edges, sizeof(struct edge*)*Pout->nedges);
+	Pout->edges = realloc(Pout->edges, sizeof(struct tb_edge*)*Pout->nedges);
 	Pout->edges[Pout->nedges-1] = e;
 	(*Chains) = realloc((*Chains), sizeof(struct uc)*Pout->nedges);
 	(*Chains)[Pout->nedges-1] = c;
@@ -771,9 +820,9 @@ struct parse	*do_unary_closure(struct parse	*Pin)
 	for(i=0;i<Pin->nroots;i++)
 	{
 		struct ucl	*u = unary_closure(Pin->roots[i]);
-		struct edge	*e = get_ucl_edge(Pout, &chains, u);
+		struct tb_edge	*e = get_ucl_edge(Pout, &chains, u);
 		Pout->nroots++;
-		Pout->roots = realloc(Pout->roots, sizeof(struct edge*)*Pout->nroots);
+		Pout->roots = realloc(Pout->roots, sizeof(struct tb_edge*)*Pout->nroots);
 		Pout->roots[Pout->nroots-1] = e;
 	}
 	for(i=0;i<Pout->nedges;i++)
@@ -787,7 +836,7 @@ void	print_forest(struct parse	*P)
 	int i, j;
 	for(i=0;i<P->nedges;i++)
 	{
-		struct edge	*e = P->edges[i];
+		struct tb_edge	*e = P->edges[i];
 		printf("edge #%d: [%d-%d] %s\n", e->id, e->from, e->to, e->sign);
 		for(j=0;j<e->ndaughters;j++)printf("  #%d", e->daughter[j]->id);
 		printf("\n");
@@ -819,7 +868,7 @@ void	free_parse(struct parse	*P)
 	free(P->roots);
 	for(i=0;i<P->nedges;i++)
 	{
-		struct edge	*e = P->edges[i];
+		struct tb_edge	*e = P->edges[i];
 		free(e->sign);
 		free(e->pack);
 		free(e->daughter);
@@ -921,7 +970,7 @@ void	web_parse(FILE	*f, char	*cgiargs)
 				char	*key = decision[decision_key];
 				int	from = atoi(decision[decision_from]);
 				int	to = atoi(decision[decision_to]);
-				if(type == 3 && (state == 1 || state == 2))
+				if((type == 3 || type == 2) && (state == 1 || state == 2))
 				{
 					npref_dec++;
 					pref_dec = realloc(pref_dec, sizeof(struct constraint)*npref_dec);
@@ -935,7 +984,7 @@ void	web_parse(FILE	*f, char	*cgiargs)
 				}
 				else
 				{
-					if(type != 3)
+					if(type != 3 && type != 2)
 						printf("DROPPING decision of type %d state %d\n", type, state);
 				}
 			}
@@ -1100,6 +1149,7 @@ main(int	argc, char	*argv[])
 	setlocale(LC_ALL, "");
 	register_server_fd(fd, web_callback, NULL);
 	signal(SIGINT, quit_server_event_loop);
-	daemonize("web.log");
+	ace_load_grammar(ERG_PATH);
+	//daemonize("web.log");
 	server_event_loop();
 }

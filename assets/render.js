@@ -22,7 +22,7 @@ function line(x1,y1,x2,y2)
 	l.setAttributeNS(null, "x2", x2);
 	l.setAttributeNS(null, "y1", y1);
 	l.setAttributeNS(null, "y2", y2);
-	l.style.stroke = "black";
+	l.setAttributeNS(null, "style", "stroke: black;");
 	return l;
 }
 
@@ -40,6 +40,17 @@ function text(str)
 DAUGHTER_HSPACE=10
 DAUGHTER_VSPACE=20
 
+function render_yield(str)
+{
+	var y = text(str);
+	y.setAttributeNS(null, "y", y.bbx.height * 2/3);
+	y.setAttributeNS(null, "style", "fill: red;");
+	var g = element("svg");
+	g.appendChild(y);
+	g.mywidth = y.bbx.width;
+	return g;
+}
+
 function render_tree(t)
 {
 	var	dtrs = [];
@@ -49,8 +60,14 @@ function render_tree(t)
 		dtrs[x] = render_tree(t.daughters[x]);
 		wtot += dtrs[x].mywidth;
 	}
+	var lexical;
 	if(dtrs.length)
 		wtot += DAUGHTER_HSPACE * (dtrs.length-1);
+	else
+	{
+		lexical = render_yield(getYield(t.from, t.to));
+		wtot = lexical.mywidth;
+	}
 	var dtrs_wtot = wtot;
 
 	var g = element("svg");
@@ -71,6 +88,13 @@ function render_tree(t)
 		g.appendChild(dtrs[x]);
 		g.appendChild(line(wtot/2, nh, dtr_x + dtrs[x].mywidth/2, nh + DAUGHTER_VSPACE - 1));
 		dtr_x += dtrs[x].mywidth + DAUGHTER_HSPACE;
+	}
+	if(lexical)
+	{
+		lexical.setAttributeNS(null, "y", nh + DAUGHTER_VSPACE);
+		lexical.setAttributeNS(null, "x", dtr_x);
+		g.appendChild(lexical);
+		g.appendChild(line(wtot/2, nh, wtot/2, nh + DAUGHTER_VSPACE - 1));
 	}
 	g.mywidth = wtot;
 	return g;
@@ -114,8 +138,9 @@ function show_trees()
 	if(availHeight / total_h < scale)scale = availHeight / total_h;
 	if(scale > 1.0)scale = 1.0;
 	myg.setAttribute("transform", "scale("+scale+")");
-	svg.style.width = availWidth + "px";
-	svg.style.height = availHeight + "px";
+	//svg.style.width = availWidth + "px";
+	//svg.style.height = availHeight + "px";
+	//svg.setAttribute("style", "width: " + availWidth + "px; height: " + availHeight + "px;");
 	svg.setAttribute("width", max_w);
 	svg.setAttribute("height", total_h);
 
@@ -129,16 +154,18 @@ function show_trees()
 			ov.appendChild(svg);
 			ov.style.display = "block";
 			myg.setAttribute("transform", "scale(1)");
-			svg.style.width = max_w + "px";
-			svg.style.height = total_h + "px";
+			//svg.style.width = max_w + "px";
+			//svg.style.height = total_h + "px";
+			//svg.setAttribute("style", "width: " + max_w + "px; height: " + total_h + "px;");
 		}
 		else
 		{
 			ds.appendChild(svg);
 			ov.style.display = "none";
 			myg.setAttribute("transform", "scale("+scale+")");
-			svg.style.width = availWidth + "px";
-			svg.style.height = availHeight + "px";
+			//svg.style.width = availWidth + "px";
+			//svg.style.height = availHeight + "px";
+			//svg.setAttribute("style", "width: " + availWidth + "px; height: " + availHeight + "px;");
 		}
 	}
 
@@ -234,7 +261,7 @@ function drag_hilight_words(x)
 
 var dspanto;
 var dspanfrom;
-var dspan;
+var dspan = "";
 
 function end_hilight_words(x)
 {
@@ -347,6 +374,7 @@ function show_sentence()
 	}
 	window.onmouseup = cancel_hilight;
 	document.getElementById("sentence").onclick = no_hilight;
+	document.getElementById("counters").onclick = no_hilight;
 }
 
 function toggle_old()
@@ -380,7 +408,7 @@ function show_decisions()
 
 function select_discriminant(d)
 {
-	decisions.push({type:d,from:dspanfrom,to:dspanto});
+	decisions.push({type:d.sign,from:d.from,to:d.to});
 	refilter();
 }
 
@@ -405,9 +433,37 @@ function buildUnaryChain(sign)
 	return d;
 }
 
+function getYield(from, to)
+{
+	var str = "";
+	var tokens = message.tokens.sort(
+		function(x,y) { return x.from - y.from; } );
+	for(var x in tokens)
+	{
+		var t = tokens[x];
+		if(t.from >= from && t.to <= to)
+		{
+			if(str != "")
+				str = str + " ";
+			str = str + t.text;
+		}
+	}
+	return str;
+}
+
+function buildYield(from, to)
+{
+	var y = document.createElement("div");
+	y.style.marginTop = "10px";
+	y.style.color = "darkred";
+	y.appendChild(document.createTextNode(getYield(from, to)));
+	return y;
+}
+
 function show_discriminants()
 {
-	var discs = message.discriminants;
+	var discs = message.discriminants.sort(
+		function(x,y) { return (x.to - x.from) - (y.to - y.from); } );
 	var div = document.getElementById("disc-scroller");
 	while(div.firstChild)div.removeChild(div.firstChild);
 	for(var x in discs)
@@ -420,13 +476,18 @@ function show_discriminants()
 		dd.style.background = "#ccf";
 		dd.style.textAlign = "center";
 		dd.appendChild(buildUnaryChain(discs[x].sign));
+		if(dspan == "" || (dspanto-dspanfrom < 2))
+		{
+			var yield = buildYield(discs[x].from, discs[x].to);
+			dd.appendChild(yield);
+		}
 		var count = document.createElement("div");
 		count.style.marginTop = "10px";
 		count.style.fontWeight = "bold";
 		count.style.color = "darkgreen";
 		count.appendChild(document.createTextNode(discs[x].count + " trees"));
 		dd.appendChild(count);
-		dd.discriminant = discs[x].sign;
+		dd.discriminant = discs[x];
 		dd.onclick = function(x){return function(ev){select_discriminant(x.discriminant);}}(dd);
 		div.appendChild(dd);
 	}

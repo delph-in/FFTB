@@ -7,11 +7,18 @@ goal: either web-based or lui-based UI where user does:
 necessary: verify that there is at least one *real* (reconstructable) tree left at each step, or *minimally* before saving
 
 improvements:
-	- option to show *all* remaining discriminants (or, say, up to 20)
-	- (option to?) show lexical types instead of lexeme names
 	- item id display -- part of a prev/next/save interface
-	- display parse tree
+	- UI to allow inclusion of *some* but not *all* the old discriminants
+	- dealing with tokenization ambiguity properly
+		- display should be based on chart cells; but what to put in each cell? tricky.
+		- ideally should display either the raw text or the REPP output, and line the chart cells up on that...
+	- online help: see an example tree for a discriminant before picking it?
 
+done:
+	+ show parse tree when disambiguated (also for substrings when requested)
+	+ option to show *all* remaining discriminants (or, say, up to 20)
+	+ show lexical types instead of lexeme names
+	+ enable use of lexical type constraints from old tsdb decisions
 
 recording decisions and preferences?
 	- first step: read existing preferences file

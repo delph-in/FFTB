@@ -1,12 +1,12 @@
 #ifndef	TREEBANK_H
 #define	TREEBANK_H
 
-struct edge
+struct tb_edge
 {
 	int	id, from, to;
 	char	*sign;
 	int	npack, ndaughters;
-	struct edge	**pack, **daughter;
+	struct tb_edge	**pack, **daughter;
 
 	long long	unpackings;	// how many ways to unpack this edge
 	long long	solutions;	// how many ways to unpack a root using this edge
@@ -22,7 +22,7 @@ struct token
 struct parse
 {
 	int	nedges, nroots;
-	struct edge	**edges, **roots;
+	struct tb_edge	**edges, **roots;
 	int	ntokens;
 	struct token	**tokens;
 };
