@@ -1,4 +1,4 @@
-var	use_old_decs = 0;
+var	use_old_decs = [];
 
 function dec_to_string(d)
 {
@@ -17,7 +17,12 @@ function get_candidates()
 {
 	xr = new XMLHttpRequest();
 	var alldecs = decisions.map(dec_to_string);
-	if(use_old_decs)alldecs = alldecs.concat(message.olddec);
+	if(message && message.olddec)
+	{
+		for(var x in message.olddec)
+			if(use_old_decs[x])
+				alldecs = alldecs.concat([message.olddec[x]]);
+	}
 	var query_string = alldecs.join("&");
 	sid = window.location.search;
 	xr.open("POST", "/session" + sid + ";" + dspan + ";" + query_string, true);

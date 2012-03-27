@@ -19,7 +19,24 @@
 </div>
 </div>
 
-<div style="position: absolute; top: 200px; width: 500px; right: 0px; bottom: 0px; background: rgb(200,200,255);" id='decisions'> </div>
+<div style="position: absolute; top: 200px; width: 480px; right: 0px; bottom: 0px; background: rgb(200,200,255); padding: 10px;" id='decisions'>
+<div id='new-decisions'>
+<span style='font-weight:bold;color:darkgreen;'><span id='new-d-count'></span> new decisions:</span>
+<div id='new-decisions-list'></div>
+</div>
+<br/>
+<div id='old-decisions' style='display:none;'>
+<span style='font-weight:bold;color:darkred;'><span id='old-d-count'></span> old decisions:</span>
+	[
+<span id='old-off'><a href='javascript:enable_all_old();'>all on</a> | all off</a></span>
+<span id='old-on' style='display: none;'>all on | <a href='javascript:disable_all_old();'>all off</a></a></span>
+<span id='old-some' style='display: none;'><a href='javascript:enable_all_old();'>all on</a> | <a href='javascript:disable_all_old();'>all off</a></a></span>
+	] [
+<span id='old-hide'><a href='javascript:show_old();'>show</a> | hide</a></span>
+<span id='old-show' style='display: none;'>show | <a href='javascript:hide_old();'>hide</a></a></span> ]
+<div id='old-decisions-list' style='display:none;'></div>
+</div>
+</div>
 
 <div style="position: absolute; left:0px; top:200px; right: 500px; bottom: 0px; background: white; padding: 5px; overflow: auto;" id='disc-scroller'> </div>
 

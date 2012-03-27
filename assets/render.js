@@ -376,10 +376,36 @@ function show_sentence()
 	document.getElementById("yellow").onclick = no_hilight;
 }
 
-function toggle_old()
+function enable_all_old()
 {
-	use_old_decs = !use_old_decs;
+	for(var x in message.olddec)
+		use_old_decs[x] = true;
+	document.getElementById('old-on').style.display = 'inline';
+	document.getElementById('old-off').style.display = 'none';
 	refilter();
+}
+
+function disable_all_old()
+{
+	for(var x in message.olddec)
+		use_old_decs[x] = null;
+	document.getElementById('old-off').style.display = 'inline';
+	document.getElementById('old-on').style.display = 'none';
+	refilter();
+}
+
+function show_old()
+{
+	document.getElementById('old-decisions-list').style.display = 'block';
+	document.getElementById('old-show').style.display = 'inline';
+	document.getElementById('old-hide').style.display = 'none';
+}
+
+function hide_old()
+{
+	document.getElementById('old-decisions-list').style.display = 'none';
+	document.getElementById('old-show').style.display = 'none';
+	document.getElementById('old-hide').style.display = 'inline';
 }
 
 function nixdecision(x)
@@ -388,10 +414,17 @@ function nixdecision(x)
 	refilter();
 }
 
+function nixolddecision(x)
+{
+	use_old_decs[x] = !use_old_decs[x];
+	refilter();
+}
+
 function show_decisions()
 {
-	var d = document.getElementById("decisions");
+	var d = document.getElementById("new-decisions-list");
 	d.innerHTML = "";
+	document.getElementById("new-d-count").innerHTML = decisions.length;
 	for(var x in decisions)
 	{
 		var dec = decisions[x];
@@ -400,8 +433,20 @@ function show_decisions()
 	}
 	if(message.olddec)
 	{
-		var txt = (use_old_decs?"Including ":"Excluding ") + message.olddec.length + " old decisions.";
-		d.innerHTML += "<a href='javascript:toggle_old();'>" + txt + "</a>";
+		document.getElementById("old-d-count").innerHTML = message.olddec.length;
+		document.getElementById("old-decisions").style.display = "block";
+		var od = message.olddec;
+		d = document.getElementById("old-decisions-list");
+		d.innerHTML = "";
+		for(var x in od)
+		{
+			var nixer = "";
+			var link = "<a href='javascript:nixolddecision(" + x + ");'>";
+			if(use_old_decs[x])
+				nixer = " [on|" + link + "off</a>]";
+			else nixer = " [" + link + "on</a>|off]";
+			d.innerHTML += od[x] + nixer + "<br/>";
+		}
 	}
 }
 
