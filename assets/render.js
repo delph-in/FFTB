@@ -382,6 +382,7 @@ function enable_all_old()
 		use_old_decs[x] = true;
 	document.getElementById('old-on').style.display = 'inline';
 	document.getElementById('old-off').style.display = 'none';
+	document.getElementById('old-some').style.display = 'none';
 	refilter();
 }
 
@@ -391,6 +392,7 @@ function disable_all_old()
 		use_old_decs[x] = null;
 	document.getElementById('old-off').style.display = 'inline';
 	document.getElementById('old-on').style.display = 'none';
+	document.getElementById('old-some').style.display = 'none';
 	refilter();
 }
 
@@ -417,6 +419,17 @@ function nixdecision(x)
 function nixolddecision(x)
 {
 	use_old_decs[x] = !use_old_decs[x];
+	document.getElementById('old-off').style.display = 'none';
+	document.getElementById('old-on').style.display = 'none';
+	document.getElementById('old-some').style.display = 'inline';
+	var allon = true, alloff = true;
+	for(var i in message.olddec)
+	{
+		if(use_old_decs[i])alloff = false;
+		if(!use_old_decs[i])allon = false;
+	}
+	if(allon)return enable_all_old();
+	if(alloff)return disable_all_old();
 	refilter();
 }
 

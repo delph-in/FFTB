@@ -1217,6 +1217,6 @@ main(int	argc, char	*argv[])
 	signal(SIGINT, quit_server_event_loop);
 	signal(SIGPIPE, pipe_handler);
 	ace_load_grammar(ERG_PATH);
-	//daemonize("web.log");
+	daemonize("web.log");
 	server_event_loop();
 }
