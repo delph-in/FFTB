@@ -53,4 +53,6 @@ struct session
 	struct constraint	*pref_dec;
 };
 
+struct parse	*do_unary_closure(struct parse	*Pin);
+
 #endif

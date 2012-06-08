@@ -1,10 +1,29 @@
-goal: either web-based or lui-based UI where user does:
-	1. initiate a session by picking a sentence from a tsdb profile
-	2. that sentence is parsed by the backend, and the backend records the packed forest and stays open with that forest in memory
-	3. the user is presented with a display of the sentence, and can mak decisions
-	4. record decisions to the tsdb profile (or a copy of it)
+things that *must* be done before any kind of release:
+	[ ]   verify that there is at least one *real* (reconstructable) tree left at each step, or *minimally* before saving
+	[ ]   save decisions; preferably in real-time as they are made, so you can return to your session from another browser or after the server is reset
+		-- tsdb does not have to be the native result store, but it could be; and we MUST support saving to tsdb somehow
+	[ ]   display items with ambiguous tokenization properly
+		-- need an example sentence to work on this
+	[ ]   make sure we are supporting all the relevant old-style discriminants
 
-necessary: verify that there is at least one *real* (reconstructable) tree left at each step, or *minimally* before saving
+things that would be *nice*:
+	[ ]   pre-parse sentences and store their forests, to avoid having to spend time parsing while user is on-line
+	various UI enhancements
+		[ ] mouseover a discriminant you have chosen to hilight the sentence span
+		[ ] allow use of old-style discriminants
+		[ ] sentence-picker screen could show additional info about each item, e.g. number of parses, number of choices made, remaining ambiguity
+		[ ] a way to see an example [sub]tree before picking a discriminant
+			-- also perhaps an easy way to pull up the documentation for various rules/types
+		[ ] overlay/display of other annotation types (ILG, PTB)
+
+bugs:
+	- when selecting a longish sentence, sometimes the UI never fully loads?
+		- may have been being caused by "ignore" messages from ACE?
+		- some sentences (e.g. ws01 10010220) take a LONG time to get back
+			- 5.3 billion trees...
+				- with 35GB of RAM, ace tries 59k, out of which 54k succeed
+			- also ws01 10010030, claims 2.4 billion trees but ACE can't find any.
+				- with 35GB of RAM, ace tries 54k, out of which 46k succeed
 
 improvements:
 	- dealing with tokenization ambiguity properly
@@ -12,14 +31,14 @@ improvements:
 		- ideally should display either the raw text or the REPP output, and line the chart cells up on that...
 	- online help: see an example tree for a discriminant before picking it?
 	- ability to save results to a new profile
+	- when hovering over an existing choice (either an old choice or a new choice), show the corresponding sentence span
+	- allow selection of old-style discriminants (i.e. break down unary chains), optionally
+	- pre-parse sentences in a profile and store the forest to disk
 
-done:
-	+ UI to allow inclusion of *some* but not *all* the old discriminants
-	+ item id display -- part of a prev/next/list interface
-	+ show parse tree when disambiguated (also for substrings when requested)
-	+ option to show *all* remaining discriminants (or, say, up to 20)
-	+ show lexical types instead of lexeme names
-	+ enable use of lexical type constraints from old tsdb decisions
+improvements for special use cases:
+	- display various types of prior annotations:
+		- Emily would like to be able to view Inter-Linear Glosses along with the sentence being treebanked
+		- Stephan would like to be able to view an alternate tree (e.g. PTB) for the same sentence
 
 recording decisions and preferences?
 	- first step: read existing preferences file
@@ -48,3 +67,20 @@ recording decisions and preferences?
 			d-start and  d-end
 				appear to match our token-based start/end positions
 	- then: button to write a new decisions/preferences file pair
+
+
+
+goal: either web-based or lui-based UI where user does:
+	1. initiate a session by picking a sentence from a tsdb profile
+	2. that sentence is parsed by the backend, and the backend records the packed forest and stays open with that forest in memory
+	3. the user is presented with a display of the sentence, and can mak decisions
+	4. record decisions to the tsdb profile (or a copy of it)
+
+
+done:
+	+ UI to allow inclusion of *some* but not *all* the old discriminants
+	+ item id display -- part of a prev/next/list interface
+	+ show parse tree when disambiguated (also for substrings when requested)
+	+ option to show *all* remaining discriminants (or, say, up to 20)
+	+ show lexical types instead of lexeme names
+	+ enable use of lexical type constraints from old tsdb decisions
