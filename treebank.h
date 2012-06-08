@@ -54,5 +54,10 @@ struct session
 };
 
 struct parse	*do_unary_closure(struct parse	*Pin);
+struct session	*get_session(int	id);
+
+extern char *tsdb_home_path;
+
+#define	ERG_PATH	"/home/sweaglesw/cdev/ace/erg-1010.dat"
 
 #endif
