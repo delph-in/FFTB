@@ -98,6 +98,7 @@ struct tb_edge	*get_ucl_edge(struct parse	*Pout, struct uc	**Chains, struct ucl	
 			h->npack++;
 			h->pack = realloc(h->pack, sizeof(struct tb_edge*)*h->npack);
 			h->pack[h->npack-1] = p;
+			p->host = h;
 		}
 	}
 	else for(i=1;i<u->nchains;i++)
@@ -136,6 +137,32 @@ struct tb_edge	*get_chain_edge(struct parse	*Pout, struct uc	**Chains, struct uc
 	return e;
 }
 
+void	add_parent(struct tb_edge	*d, struct tb_edge	*p)
+{
+	int i;
+	for(i=0;i<d->nparents;i++)
+		if(d->parents[i] == p)return;
+	d->nparents++;
+	d->parents = realloc(d->parents, sizeof(struct tb_edge*)*d->nparents);
+	d->parents[d->nparents-1] = p;
+}
+
+void	compute_parentage(struct parse	*P)
+{
+	int i, j, k;
+	for(i=0;i<P->nedges;i++)
+	{
+		struct tb_edge	*e = P->edges[i];
+		for(k=0;k<e->ndaughters;k++)
+		{
+			struct tb_edge	*d = e->daughter[k];
+			add_parent(d, e);
+			for(j=0;j<d->npack;j++)
+				add_parent(d->pack[j], e);
+		}
+	}
+}
+
 struct parse	*do_unary_closure(struct parse	*Pin)
 {
 	struct parse	*Pout = calloc(sizeof(*Pout),1);
@@ -156,12 +183,22 @@ struct parse	*do_unary_closure(struct parse	*Pin)
 	{
 		struct ucl	*u = unary_closure(Pin->roots[i]);
 		struct tb_edge	*e = get_ucl_edge(Pout, &chains, u);
+		e->is_root = 1;
 		Pout->nroots++;
 		Pout->roots = realloc(Pout->roots, sizeof(struct tb_edge*)*Pout->nroots);
 		Pout->roots[Pout->nroots-1] = e;
 	}
 	for(i=0;i<Pout->nedges;i++)
 		free(chains[i].e);
+	for(i=0;i<Pout->nroots;i++)
+	{
+		struct tb_edge	*e = Pout->roots[i];
+		e->is_root = 1;
+		int j;
+		for(j=0;j<e->npack;j++)
+			e->pack[j]->is_root = 1;
+	}
 	if(chains)free(chains);
+	compute_parentage(Pout);
 	return Pout;
 }

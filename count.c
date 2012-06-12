@@ -37,7 +37,7 @@ int	label_is_present(char	*label, char	*uchain)
 	return 0;
 }
 
-int	incompatible(int	from, int	to, char	*uc_label, struct constraint	c)
+int	incompatible(int	from, int	to, char	*uc_label, struct constraint	c, int edge_is_lexical)
 {
 	if(c.from == from && c.to == to)
 	{
@@ -54,6 +54,7 @@ int	incompatible(int	from, int	to, char	*uc_label, struct constraint	c)
 	if(c.from >= from && c.to <= to)
 	{
 		// c strictly contained in e
+		if(edge_is_lexical)return 1;	// can't still be satisfied
 		return 0;	// can still be satisfied
 	}
 	if(c.from <= from && c.to >= to)
@@ -76,16 +77,25 @@ long long	count_remaining_trees_r(struct tb_edge	*e, int	nc, struct constraint	*
 	long long	n = 1;
 	int	i, bad = 0;
 
+	if(e->unpackings != -1)
+	{
+		// we've been here before; add up packed edges and we're done.
+		n = e->unpackings;
+		for(i=0;i<e->npack;i++)
+			n += e->pack[i]->unpackings;
+		return n;
+	}
+
 	for(i=0;i<nc;i++)
-		if(incompatible(e->from, e->to, e->sign, c[i]))bad = 1;
+		if(incompatible(e->from, e->to, e->sign, c[i], (e->ndaughters==0)?1:0))bad = 1;
 
 	if(!bad)
 	{
 		for(i=0;i<e->ndaughters;i++)
 			n *= count_remaining_trees_r(e->daughter[i], nc, c);
-		e->unpackings = n;
 	}
 	else n = 0;
+	e->unpackings = n;
 
 	for(i=0;i<e->npack;i++)
 		n += count_remaining_trees_r(e->pack[i], nc, c);
@@ -121,17 +131,66 @@ void	count_solutions_r(struct tb_edge	*e, long long outside)
 		count_solutions_r(e->pack[i], outside);
 }
 
+void	count_solutions_r2(struct tb_edge	*e)
+{
+	// if we know how many solutions each possible parent appears in,
+	// and we know how many unpackings everything has,
+	// we can compute how many solutions 'e' appears in with each parent, and add
+	// ... and dynamic programming applies.
+
+	// first we compute 'n' = how many solutions 'e's parents appear in
+	long long	n = 0;
+
+	if(e->solutions != -1)return;	// already been here
+
+	// if 'e' is packed in another edge,
+	// we should really be computing this function for the host edge.
+	if(e->host)e = e->host;
+
+	int i;
+	for(i=0;i<e->nparents;i++)
+	{
+		// ps = how many solutions this parent appears in
+		struct tb_edge	*p = e->parents[i];
+		if(p->solutions == -1)	// recurse if we haven't visited there before
+			count_solutions_r2(p);
+		n += p->solutions;
+		//printf("edge #%d has parent #%d with %lld solutions\n", e->id, p->id, p->solutions);
+	}
+
+	// next, 'm' = total unpackings of 'e' and its packed edges
+	long long	m = e->unpackings;
+	for(i=0;i<e->npack;i++)
+		m += e->pack[i]->unpackings;
+
+	// deflate parent situation count so we can spread it between the packed edges
+	if(!m)assert(!n);
+	else n /= m;
+
+	// if 'e' is a root edge, that's another situation
+	if(e->is_root)n += 1;
+
+	// compute nsolutions for 'e' and each edge packed in it
+	e->solutions = n * e->unpackings;
+	for(i=0;i<e->npack;i++)
+		e->pack[i]->solutions = n * e->pack[i]->unpackings;
+}
+
 long long	count_remaining_trees(struct parse	*P, struct constraint	*c, int	nc)
 {
-	//printf("counting with %d constraints\n", nc);
+	printf("counting with %d constraints\n", nc);
 	int i;
 	long long n = 0;
 	for(i=0;i<P->nedges;i++)
-		P->edges[i]->unpackings = P->edges[i]->solutions = 0;
+		P->edges[i]->unpackings = -1;
 	for(i=0;i<P->nroots;i++)
 		n += count_remaining_trees_r(P->roots[i], nc, c);
-	for(i=0;i<P->nroots;i++)
-		count_solutions_r(P->roots[i], 1);
+
+	for(i=0;i<P->nedges;i++)
+		P->edges[i]->solutions = -1;
+	for(i=0;i<P->nedges;i++)
+		count_solutions_r2(P->edges[i]);
+	printf("done recounting solutions\n");
 	return n;
 }
 
@@ -184,7 +243,7 @@ int	tree_satisfies_constraints(struct tree	*t, struct constraint	*c, int	nc)
 	// 't' is the bottom of a unary chain
 	for(i=0;i<nc;i++)
 	{
-		if(incompatible(t->tfrom, t->tto, uc_label, c[i]))
+		if(incompatible(t->tfrom, t->tto, uc_label, c[i], (t->daughters[0]->ndaughters==0)?1:0))
 		{
 			printf("gold tree node '%s' conflicts with '%s'\n", uc_label, c[i].sign);
 			return 0;

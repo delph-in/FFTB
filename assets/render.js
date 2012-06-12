@@ -3,6 +3,9 @@ svg.setAttribute("version", "1.1");
 document.getElementById("disc-scroller").appendChild(svg);
 svg.style.background = "white";
 
+//var containerTag = "svg";	// results in sloooow rendering
+var containerTag = "g";	// results in fast rendering!
+
 function element(type)
 {
 	return document.createElementNS("http://www.w3.org/2000/svg", type);
@@ -10,7 +13,7 @@ function element(type)
 
 function container()
 {
-	var g = element("svg");
+	var g = element(containerTag);
 	for(var x=0;arguments.length>x;x=x+1) { g.appendChild(arguments[x]); }
 	return g;
 }
@@ -45,7 +48,7 @@ function render_yield(str)
 	var y = text(str);
 	y.setAttributeNS(null, "y", y.bbx.height * 2/3);
 	y.setAttributeNS(null, "style", "fill: red;");
-	var g = element("svg");
+	var g = element(containerTag);
 	g.appendChild(y);
 	g.mywidth = y.bbx.width;
 	return g;
@@ -70,7 +73,7 @@ function render_tree(t)
 	}
 	var dtrs_wtot = wtot;
 
-	var g = element("svg");
+	var g = element(containerTag);
 	var n = text(t.label);
 	var nw = n.width;
 	var nh = n.height;
@@ -81,18 +84,21 @@ function render_tree(t)
 	n.setAttributeNS(null, "y", nh * 2/3);
 	g.appendChild(n);
 	var	dtr_x = wtot / 2 - dtrs_wtot / 2;
+	var ytrans = nh + DAUGHTER_VSPACE;
 	for(var x in dtrs)
 	{
-		dtrs[x].setAttributeNS(null, "y", nh + DAUGHTER_VSPACE);
-		dtrs[x].setAttributeNS(null, "x", dtr_x);
+		//dtrs[x].setAttributeNS(null, "y", nh + DAUGHTER_VSPACE);
+		//dtrs[x].setAttributeNS(null, "x", dtr_x);
+		dtrs[x].setAttributeNS(null, "transform", "translate(" + dtr_x + "," + ytrans + ")");
 		g.appendChild(dtrs[x]);
 		g.appendChild(line(wtot/2, nh, dtr_x + dtrs[x].mywidth/2, nh + DAUGHTER_VSPACE - 1));
 		dtr_x += dtrs[x].mywidth + DAUGHTER_HSPACE;
 	}
 	if(lexical)
 	{
-		lexical.setAttributeNS(null, "y", nh + DAUGHTER_VSPACE);
-		lexical.setAttributeNS(null, "x", dtr_x);
+		//lexical.setAttributeNS(null, "y", nh + DAUGHTER_VSPACE);
+		//lexical.setAttributeNS(null, "x", dtr_x);
+		lexical.setAttributeNS(null, "transform", "translate(" + dtr_x + "," + ytrans + ")");
 		g.appendChild(lexical);
 		g.appendChild(line(wtot/2, nh, wtot/2, nh + DAUGHTER_VSPACE - 1));
 	}

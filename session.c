@@ -363,6 +363,8 @@ struct parse	*read_forest_from_ace(FILE	*p, wchar_t	*winput)
 
 	void	pack_edge(struct tb_edge	*host, struct tb_edge	*pack)
 	{
+		if(host->is_root)pack->is_root = 1;
+		pack->host = host;
 		enqueue(&host->pack, &host->npack, pack);
 	}
 
@@ -390,6 +392,9 @@ struct parse	*read_forest_from_ace(FILE	*p, wchar_t	*winput)
 			P->nroots++;
 			P->roots = realloc(P->roots, sizeof(struct tb_edge*)*P->nroots);
 			P->roots[P->nroots-1] = e;
+			int i;
+			e->is_root = 1;
+			for(i=0;i<e->npack;i++)e->pack[i]->is_root = 1;
 		}
 		else if(5 == sscanf(line, "token %d %d %d %d %l[^\n]\n", &from, &to, &cfrom, &cto, text))
 		{

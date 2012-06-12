@@ -7,6 +7,8 @@ things that *must* be done before any kind of release:
 	[ ]   make sure we are supporting all the relevant old-style discriminants
 
 things that would be *nice*:
+	[x]   figure out why svg rendering is so incredibly slow, especially for long sentences
+		- no idea why it's so slow, but moving from <svg> nested containers with X and Y attributes to <g> nested containers with transform=translate(X,Y) attributes made it enormously faster.
 	[ ]   pre-parse sentences and store their forests, to avoid having to spend time parsing while user is on-line
 	various UI enhancements
 		[ ] mouseover a discriminant you have chosen to hilight the sentence span
@@ -84,3 +86,17 @@ done:
 	+ option to show *all* remaining discriminants (or, say, up to 20)
 	+ show lexical types instead of lexeme names
 	+ enable use of lexical type constraints from old tsdb decisions
+
+
+bug: ws01 10010590
+	first, turn on all old decisions
+	w_hyphen_plr@av_-_dg-cmp-so_le: 25 to 26   can be added any number of times with no effect...
+	... it turns out lots of discriminants don't work quite as hoped here.
+	it seems to be related to the MWE "so-called".
+	picking the (only) choice for "called" is supposed to cut us from 1.2 million to 853k trees (which I believe is a correct count), but in fact causes no change to the remaining tree counter.  this is because the ~400k trees with the MWE are not filtered out by that discriminant... they should  be, but the code is buggy I guess.
+
+	usually, to determine whether an edge is compatible with a constraint you ignore constraints that are not for the exact span of the edge yet do not cross it, since it is up to a daughter edge to realize or fail to realize that constraint.
+
+	however, when the edge in question is a MWE, and the constraint is selecting a constituent (or lexeme) that is a subspan of that MWE...
+	so, basically:
+		a lexical edge is incompatible with (positive) constraints describing smaller spans

@@ -4,3 +4,6 @@ LIBS=-la -ltsdb -lace
 
 web: ${OBJS}
 	gcc ${CFLAGS} ${OBJS} -o web ${LIBS}
+
+clean:
+	rm -f ${OBJS}

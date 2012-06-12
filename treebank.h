@@ -8,6 +8,12 @@ struct tb_edge
 	int	npack, ndaughters;
 	struct tb_edge	**pack, **daughter;
 
+	int	nparents;
+	int	is_root;
+	struct tb_edge	**parents;
+
+	struct tb_edge	*host;	// edge this is packed onto
+
 	long long	unpackings;	// how many ways to unpack this edge
 	long long	solutions;	// how many ways to unpack a root using this edge
 };
@@ -55,6 +61,7 @@ struct session
 
 struct parse	*do_unary_closure(struct parse	*Pin);
 struct session	*get_session(int	id);
+long long	count_remaining_trees(struct parse	*P, struct constraint	*c, int	nc);
 
 extern char *tsdb_home_path;
 
