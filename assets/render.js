@@ -57,52 +57,121 @@ function render_yield(str)
 function render_tree(t)
 {
 	var	dtrs = [];
-	var wtot = 0;
+	var wtot = -DAUGHTER_HSPACE;
+	var dtr_label_mean = 0;
 	for(var x in t.daughters)
 	{
+		wtot += DAUGHTER_HSPACE;
 		dtrs[x] = render_tree(t.daughters[x]);
+		dtr_label_mean += wtot + dtrs[x].labelcenter;
 		wtot += dtrs[x].mywidth;
 	}
 	var lexical;
 	if(dtrs.length)
-		wtot += DAUGHTER_HSPACE * (dtrs.length-1);
+	{
+		dtr_label_mean /= dtrs.length;
+	}
 	else
 	{
 		lexical = render_yield(getYield(t.from, t.to));
 		wtot = lexical.mywidth;
+		dtr_label_mean = wtot / 2;
 	}
 	var dtrs_wtot = wtot;
 
 	var g = element(containerTag);
-	var n = text(t.label);
+	var n = text(t.shortlabel);
 	var nw = n.width;
 	var nh = n.height;
 	nw = n.bbx.width;
 	nh = n.bbx.height;
-	if(nw > wtot)wtot = nw;
-	n.setAttributeNS(null, "x", wtot / 2 - nw / 2);
+	var labelcenter = dtr_label_mean;
+	if(labelcenter - nw/2 < 0)labelcenter = nw/2;
+	if(labelcenter + nw/2 > wtot)labelcenter = wtot - nw/2;
+	if(nw > wtot) { wtot = nw; labelcenter = wtot / 2; }
+	n.setAttributeNS(null, "x", labelcenter - nw / 2);
 	n.setAttributeNS(null, "y", nh * 2/3);
 	g.appendChild(n);
 	var	dtr_x = wtot / 2 - dtrs_wtot / 2;
 	var ytrans = nh + DAUGHTER_VSPACE;
 	for(var x in dtrs)
 	{
-		//dtrs[x].setAttributeNS(null, "y", nh + DAUGHTER_VSPACE);
-		//dtrs[x].setAttributeNS(null, "x", dtr_x);
 		dtrs[x].setAttributeNS(null, "transform", "translate(" + dtr_x + "," + ytrans + ")");
+		g.appendChild(line(labelcenter, nh, dtr_x + dtrs[x].labelcenter, nh + DAUGHTER_VSPACE - 1));
 		g.appendChild(dtrs[x]);
-		g.appendChild(line(wtot/2, nh, dtr_x + dtrs[x].mywidth/2, nh + DAUGHTER_VSPACE - 1));
 		dtr_x += dtrs[x].mywidth + DAUGHTER_HSPACE;
 	}
 	if(lexical)
 	{
-		//lexical.setAttributeNS(null, "y", nh + DAUGHTER_VSPACE);
-		//lexical.setAttributeNS(null, "x", dtr_x);
 		lexical.setAttributeNS(null, "transform", "translate(" + dtr_x + "," + ytrans + ")");
+		g.appendChild(line(labelcenter, nh, wtot/2, nh + DAUGHTER_VSPACE - 1));
 		g.appendChild(lexical);
-		g.appendChild(line(wtot/2, nh, wtot/2, nh + DAUGHTER_VSPACE - 1));
 	}
 	g.mywidth = wtot;
+	g.labelcenter = labelcenter;
+	g.labelheight = nh;
+	t.mainsvg = g;
+	t.labelsvg = n;
+
+	return g;
+}
+
+function render_tree_popups(t, isleft, isright, istop)
+{
+	var dtrs_wtot = -DAUGHTER_HSPACE;
+	var	dtrs = [];
+	for(var x in t.daughters)
+	{
+		dtrs[x] = render_tree_popups(t.daughters[x], (x>0)?0:isleft, (x<(t.daughters.length-1))?0:isright, 0);
+		dtrs_wtot += t.daughters[x].mainsvg.mywidth + DAUGHTER_HSPACE;
+	}
+
+	var maing = t.mainsvg;
+	var labelheight = maing.labelheight;
+	var labelcenter = maing.labelcenter;
+	var wtot = maing.mywidth;
+
+	var g = element(containerTag);
+	g.setAttributeNS(null, "width", wtot);
+
+	var	dtr_x = wtot / 2 - dtrs_wtot / 2;
+	var ytrans = labelheight + DAUGHTER_VSPACE;
+	for(var x in dtrs)
+	{
+		dtrs[x].setAttributeNS(null, "transform", "translate(" + dtr_x + "," + ytrans + ")");
+		dtr_x += dtrs[x].mywidth + DAUGHTER_HSPACE;
+		g.appendChild(dtrs[x]);
+	}
+
+
+	var altlabel = text(t.label);
+	var altwidth = altlabel.bbx.width;
+	var altheight = altlabel.bbx.height;
+	var boxwidth = altwidth + 10;
+	var boxheight = altheight + 10;
+
+	var bg = element("rect");
+	bg.setAttributeNS(null, "style", "fill: white; stroke: black; stroke-width: 2px;");
+	bg.setAttributeNS(null, "width", boxwidth);
+	bg.setAttributeNS(null, "height", boxheight);
+	altlabel.setAttributeNS(null, "x", 5);
+	altlabel.setAttributeNS(null, "y", boxheight - 5 - 5);
+
+	var galt = container(bg, altlabel);
+	var galtx = (labelcenter - boxwidth/2);
+	var galty = -5;
+	if(isleft && galtx<1)galtx = 1;
+	if(isright && galtx + boxwidth > wtot-1)galtx = wtot-1 - boxwidth;
+	if(istop)galty = 1;
+	galt.setAttributeNS(null, "transform", "translate(" + galtx + "," + galty + ")");
+	galt.setAttributeNS(null, "style", "visibility: hidden;");
+	g.appendChild(galt);
+
+	g.mywidth = wtot;
+
+	t.labelsvg.onmouseover = function() { galt.setAttributeNS(null, "style", "visibility: visible;"); }
+	galt.onmouseout = function() { galt.setAttributeNS(null, "style", "visibility: hidden;"); }
+
 	return g;
 }
 
@@ -133,7 +202,10 @@ function show_trees()
 	{
 		var	t = render_tree(message.trees[x]);
 		t.setAttribute("y", total_h);
+		var	popt = render_tree_popups(message.trees[x], 1, 1, 1);
+		popt.setAttribute("y", total_h);
 		myg.appendChild(t);
+		myg.appendChild(popt);
 		var b = t.getBBox();
 		total_h += b.height;
 		if(b.width > max_w)max_w = b.width;
@@ -291,6 +363,26 @@ function end_hilight_words(x)
 	}
 }
 
+function hilight_dec(from, to)
+{
+	var tokens = message.tokens.sort(
+		function(x,y) { return x.from - y.from; } );
+	for(var x in tokens)
+	{
+		var t = tokens[x];
+		if(t.from >= from && t.to <= to)
+			t.div.style.background = 'lightgreen';
+	}
+}
+
+function unhilight_dec()
+{
+	var tokens = message.tokens.sort(
+		function(x,y) { return x.from - y.from; } );
+	for(var x in tokens)
+		tokens[x].div.style.background = 'none';
+}
+
 function show_sentence()
 {
 	//var words = message.item.split(" ");
@@ -351,6 +443,7 @@ function show_sentence()
 
 		d.tokFrom = tokens[x].from;
 		d.tokTo = tokens[x].to;
+		tokens[x].div = d;
 		if(dspanto)
 		{
 			if(d.tokFrom >= dspanfrom && d.tokTo <= dspanto)
@@ -448,7 +541,7 @@ function show_decisions()
 	{
 		var dec = decisions[x];
 		var nixer = " <a href='javascript:nixdecision(" + x + ");'>[x]</a>";
-		d.innerHTML += dec.type + ": " + dec.from + " to " + dec.to + nixer + "<br/>";
+		d.innerHTML += "<span onmouseover='hilight_dec("+dec.from+","+dec.to+")' onmouseout='unhilight_dec()'>" + dec.type + ": " + dec.from + " to " + dec.to + nixer + "</span><br/>";
 	}
 	if(message.olddec)
 	{
@@ -464,7 +557,10 @@ function show_decisions()
 			if(use_old_decs[x])
 				nixer = " [on|" + link + "off</a>]";
 			else nixer = " [" + link + "on</a>|off]";
-			d.innerHTML += od[x] + nixer + "<br/>";
+			var fields = od[x].split(":");
+			var span = fields[2].split("-");
+			var from = span[0], to = span[1];
+			d.innerHTML += "<span onmouseover='hilight_dec("+from+","+to+")' onmouseout='unhilight_dec()'>" + od[x] + nixer + "</span><br/>";
 		}
 	}
 }

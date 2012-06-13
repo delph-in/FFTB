@@ -17,6 +17,7 @@
 
 #include	"tree.h"
 #include	"treebank.h"
+#include	"reconstruct.h"
 
 int	id_allocator;
 int				nsessions;
@@ -125,7 +126,7 @@ char	*get_uclabel(char	*stack, int	k)
 	return rv;
 }
 
-void	send_tree(FILE	*f, struct tb_edge	*e, int	ucdepth)
+struct tree	*extract_tree(struct tb_edge	*e, int	ucdepth)
 {
 	int	i;
 	// 'e' and its packed edges together have exactly one unpacking amongst them
@@ -138,28 +139,91 @@ void	send_tree(FILE	*f, struct tb_edge	*e, int	ucdepth)
 	}
 	assert(e->unpackings == 1);
 
-	char	*lab = get_uclabel(e->sign, ucdepth);
-	char	*esc = qescape(lab);
-	char	*l2 = get_uclabel(e->sign, ucdepth+1);
+	struct tree	*t = calloc(sizeof(*t),1);
+	t->label = get_uclabel(e->sign_with_lexnames, ucdepth);
+	t->tfrom = e->from;
+	t->tto = e->to;
+
+	char	*l2 = get_uclabel(e->sign_with_lexnames, ucdepth+1);
 	if(l2)
 	{
 		free(l2);
-		fprintf(f, "{label: \"%s\", from:%d, to:%d, daughters: [", esc, e->from, e->to);
-		send_tree(f, e, ucdepth+1);
-		fprintf(f, "]}");
+		t->ndaughters = 1;
+		t->daughters = calloc(sizeof(struct tree*),1);
+		t->daughters[0] = extract_tree(e, ucdepth+1);
 	}
 	else
 	{
-		fprintf(f, "{label: \"%s\", from:%d, to:%d, daughters: [", esc, e->from, e->to);
-		for(i=0;i<e->ndaughters;i++)
+		t->ndaughters = e->ndaughters;
+		t->daughters = calloc(sizeof(struct tree*),t->ndaughters);
+		if(!e->ndaughters)
 		{
-			if(i)fprintf(f, ",");
-			send_tree(f, e->daughter[i], 0);
+			// lexeme node
+			// need to supply an orthography daughter tree node, which has a few more fields
+			struct tree	*orth = calloc(sizeof(struct tree),1);
+			t->ndaughters = 1;
+			t->daughters = calloc(sizeof(struct tree*),1);
+			t->daughters[0] = orth;
+
+			orth->label = strdup("_");	// our use of the tree doesn't depend on this and it's inconvenient to get it here
+			orth->tfrom = t->tfrom;
+			orth->tto = t->tto;
+			// ->ntokens  ( = the lexeme's ->stemlen...)
+			// ->tokens (could be ""s for our purposes)
+			// ->cfrom, ->cto (could be phony for our purposes)
+			struct lexeme	*lex = get_lex_by_name_hash(t->label);
+			assert(lex != NULL);
+			orth->ntokens = lex->stemlen;
+			orth->tokens = calloc(sizeof(char*),orth->ntokens);
+			int j;
+			for(j=0;j<orth->ntokens;j++)orth->tokens[j] = strdup("");
+			orth->cfrom = orth->cto = -1;
 		}
-		fprintf(f, "]}");
+		else for(i=0;i<e->ndaughters;i++)
+			t->daughters[i] = extract_tree(e->daughter[i], 0);
 	}
+	return t;
+}
+
+void	fsend_tree(FILE	*f, struct tree	*t)
+{
+	int	i;
+
+	int lexical = 0;
+	if(t->ndaughters == 1 && t->daughters[0]->ndaughters == 0)lexical = 1;
+
+	char	*esc;
+	if(lexical)
+	{
+		// for whatever reason, grammarians prefer to see the lexical type as the full-form sign for a lexical node, rather than the lexeme identifier
+		struct lexeme	*lex = get_lex_by_name_hash(t->label);
+		esc = qescape(lex->lextype->name);
+	}
+	else esc = qescape(t->label);
+	char	*sesc = qescape(t->shortlabel);
+	fprintf(f, "{label: \"%s\", shortlabel: \"%s\", from:%d, to:%d, daughters: [", esc, sesc, t->tfrom, t->tto);
 	free(esc);
-	free(lab);
+	free(sesc);
+
+
+	if(!lexical)for(i=0;i<t->ndaughters;i++)
+	{
+		if(i)fprintf(f, ",");
+		fsend_tree(f, t->daughters[i]);
+	}
+	fprintf(f, "]}");
+}
+
+void	send_tree(FILE	*f, struct tb_edge	*e, int	unused)
+{
+	struct tree	*t = extract_tree(e, 0);
+	assert(t != NULL);
+	void callback(struct tree	*t, struct dg	*d)
+		{ t->shortlabel = label_dag(d, "?"); }
+	reconstruct_tree(t, callback);
+	fsend_tree(f, t);
+	free_tree(t);
+	clear_slab();
 }
 
 void	web_session(FILE	*f, char	*query)
@@ -335,6 +399,13 @@ FILE	*invoke_ace(char	*input)
 	return popen(command, "r");
 }
 
+char	*sign_with_lexnames_to_sign_with_lextypes(char	*swln)
+{
+	struct lexeme	*lex = get_lex_by_name_hash(swln);
+	assert(lex != NULL);
+	return strdup(lex->lextype->name);
+}
+
 struct parse	*read_forest_from_ace(FILE	*p, wchar_t	*winput)
 {
 	struct parse	*P = calloc(sizeof(*P),1);
@@ -440,7 +511,7 @@ struct parse	*read_forest_from_ace(FILE	*p, wchar_t	*winput)
 			assert(*lp=='[');
 			lp++;
 			struct tb_edge	*e = get_edge(id);
-			e->sign = strdup(sign);
+			e->sign_with_lexnames = strdup(sign);
 			e->from = from;
 			e->to = to;
 			int done = 0;
@@ -482,6 +553,9 @@ struct parse	*read_forest_from_ace(FILE	*p, wchar_t	*winput)
 			assert(*lp==')');
 			lp++;
 			assert(*lp==')');
+			if(e->ndaughters)
+				e->sign = strdup(e->sign_with_lexnames);
+			else e->sign = sign_with_lexnames_to_sign_with_lextypes(e->sign_with_lexnames);
 		}
 	}
 	pclose(p);
@@ -536,6 +610,7 @@ void	free_parse(struct parse	*P)
 	{
 		struct tb_edge	*e = P->edges[i];
 		free(e->sign);
+		free(e->sign_with_lexnames);
 		free(e->pack);
 		free(e->daughter);
 		free(e);

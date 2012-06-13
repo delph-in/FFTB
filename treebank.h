@@ -4,7 +4,8 @@
 struct tb_edge
 {
 	int	id, from, to;
-	char	*sign;
+	char	*sign;					// uses lexical types on leaves
+	char	*sign_with_lexnames;	// uses lexeme names on leaves
 	int	npack, ndaughters;
 	struct tb_edge	**pack, **daughter;
 

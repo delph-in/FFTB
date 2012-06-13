@@ -59,6 +59,22 @@ struct ucl	*unary_closure(struct tb_edge	*e)
 	return u;
 }
 
+char	*chain_sign_with_lexnames(struct uc	c)
+{
+	char	*sign = NULL;
+	int	len = c.n;
+	int	i;
+	for(i=0;i<c.n;i++)
+		len += strlen(c.e[i]->sign_with_lexnames);
+	sign = calloc(1,len);
+	for(i=0;i<c.n;i++)
+	{
+		if(i)strcat(sign, "@");
+		strcat(sign, c.e[i]->sign_with_lexnames);
+	}
+	return sign;
+}
+
 char	*chain_sign(struct uc	c)
 {
 	char	*sign = NULL;
@@ -122,6 +138,7 @@ struct tb_edge	*get_chain_edge(struct parse	*Pout, struct uc	**Chains, struct uc
 	e->to = c.e[0]->to;
 	e->id = Pout->nedges+1;
 	e->sign = chain_sign(c);
+	e->sign_with_lexnames = chain_sign_with_lexnames(c);
 	e->ndaughters = c.e[c.n-1]->ndaughters;
 	e->daughter = calloc(sizeof(struct tb_edge*),e->ndaughters);
 	Pout->nedges++;

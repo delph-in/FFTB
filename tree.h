@@ -4,6 +4,7 @@
 struct tree
 {
 	char	*label;
+	char	*shortlabel;
 	char	**tokens;
 	int		ndaughters;
 	int		ntokens;

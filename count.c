@@ -17,6 +17,7 @@
 
 #include	"tree.h"
 #include	"treebank.h"
+#include	"reconstruct.h"
 
 // system to count how many trees the forest describes that match our constraints
 
@@ -196,6 +197,7 @@ long long	count_remaining_trees(struct parse	*P, struct constraint	*c, int	nc)
 
 // system to check whether a stored gold tree matches our constraints
 
+/*  this is now supplied by reconstruct.c
 struct lexeme	*get_lex_by_name_hash(char	*name)
 {
 	static struct hash	*h = NULL;
@@ -214,7 +216,7 @@ struct lexeme	*get_lex_by_name_hash(char	*name)
 
 	fprintf(stderr, "unknown lexeme '%s'!\n", name);
 	return NULL;
-}
+}*/
 
 int	tree_satisfies_constraints(struct tree	*t, struct constraint	*c, int	nc)
 {
