@@ -152,8 +152,8 @@ void	web_slash(FILE	*f, char	*path)
 
 void	web_callback(int	fd, void	*ptr, struct sockaddr_in	addr)
 {
-	char	method[128], path[1024];
-	FILE	*f = get_http_request(fd, method, path);
+	char	method[128], path[102400];
+	FILE	*f = get_long_http_request(fd, 102300, method, path);
 	if(!f)return;
 	printf("should %s    %s\n", method, path);
 	if(!strcasecmp(method, "GET"))
@@ -202,6 +202,6 @@ main(int	argc, char	*argv[])
 	signal(SIGINT, quit_server_event_loop);
 	signal(SIGPIPE, pipe_handler);
 	ace_load_grammar(ERG_PATH);
-	daemonize("web.log");
+	//daemonize("web.log");
 	server_event_loop();
 }

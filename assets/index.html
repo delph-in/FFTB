@@ -4,6 +4,13 @@
 
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 
+<head>
+<style>
+.sent_text { color: black; }
+.sent_space { color: #aaa; }
+</style>
+</head>
+
 <body style='background: rgb(200,200,200);'>
 
 <div id='yellow' style='background-color: rgb(255,255,200); position: absolute; top:0px; left:0px; right:0px; height:200px;'>
@@ -16,10 +23,13 @@
 <span id='profile-id'>home/foo/bar</span> <span id='item-id'>1001</span>
 <br/>
 <a id='nextlink'>next</a> | <a id='prevlink'>prev</a> | <a id='listlink'>list</a>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;	[
+<span id='st-hide' style='display: inline;'><a href='javascript:show_spacetext();'>show</a> | hide</a></span>
+<span id='st-show' style='display: none;'>show | <a href='javascript:hide_spacetext();'>hide</a></a></span> ignored text ]
 </div>
 </div>
 
-<div style="position: absolute; top: 200px; width: 480px; right: 0px; bottom: 0px; background: rgb(200,200,255); padding: 10px;" id='decisions'>
+<div style="position: absolute; top: 200px; width: 480px; right: 0px; bottom: 0px; background: rgb(200,200,255); padding: 10px; overflow: auto;" id='decisions'>
 <div id='new-decisions'>
 <span style='font-weight:bold;color:darkgreen;'><span id='new-d-count'></span> new decisions:</span>
 <div id='new-decisions-list'></div>

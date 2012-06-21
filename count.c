@@ -55,8 +55,12 @@ int	incompatible(int	from, int	to, char	*uc_label, struct constraint	c, int edge
 	if(c.from >= from && c.to <= to)
 	{
 		// c strictly contained in e
-		if(edge_is_lexical)return 1;	// can't still be satisfied
-		return 0;	// can still be satisfied
+		if(edge_is_lexical)
+		{
+			if(c.type == constraintAbsent)return 0;	// can't still be violated
+			else return 1;	// can't still be satisfied
+		}
+		return 0;	// can still be satisfied/violated
 	}
 	if(c.from <= from && c.to >= to)
 	{

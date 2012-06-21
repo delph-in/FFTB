@@ -13,6 +13,8 @@ function dec_to_string(d)
 
 var dspan = "";
 
+var firsttime = 1;
+
 function get_candidates()
 {
 	xr = new XMLHttpRequest();
@@ -58,11 +60,17 @@ shew_sentence = 0;
 
 function got_reply()
 {
+	show_sentence();
 	show_decisions();
 	show_discriminants();
-	show_sentence();
 	show_trees();
 	show_item_and_profile_id();
+	if(firsttime)
+	{
+		show_old();
+		enable_all_old();
+		firsttime = 0;
+	}
 }
 
 function refilter()

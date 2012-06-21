@@ -47,22 +47,27 @@ struct constraint
 	char	*sign;
 	int		from, to;
 	int		type;
+	int	inferred;
 };
 
 struct session
 {
 	char	*profile_id, *item_id;
+	char	*gold_profile_id;
 	char	*input;
 	struct parse	*parse;
 	int		id;
 	struct tree	*pref_tree;
-	int					npref_dec;
-	struct constraint	*pref_dec;
+	int					nlocal_dec;
+	struct constraint	*local_dec;
+	int					ngold_dec;
+	struct constraint	*gold_dec;
 };
 
 struct parse	*do_unary_closure(struct parse	*Pin);
 struct session	*get_session(int	id);
 long long	count_remaining_trees(struct parse	*P, struct constraint	*c, int	nc);
+struct session	*get_session(int	id);
 
 extern char *tsdb_home_path;
 

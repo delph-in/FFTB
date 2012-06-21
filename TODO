@@ -1,41 +1,25 @@
 things that *must* be done before any kind of release:
+	[ ]   UI to select a gold profile for an update operation
 	[ ]   verify that there is at least one *real* (reconstructable) tree left at each step, or *minimally* before saving
+		-- actually, that could be expensive... if there is no reconstructable tree subject to the constraints, we have to rule out *every* remaining tree somehow or another.  we expect this to be rare except when there are very few trees left, so *usually* we should be fine... but it seems scary to try to offer a guarantee when it could take arbitrarily long to prove.
 	[ ]   save decisions; preferably in real-time as they are made, so you can return to your session from another browser or after the server is reset
 		-- tsdb does not have to be the native result store, but it could be; and we MUST support saving to tsdb somehow
-	[ ]   display items with ambiguous tokenization properly
-		-- need an example sentence to work on this
-	[ ]   make sure we are supporting all the relevant old-style discriminants
+		-- how do we compute inferred discriminants to save?
+		basic design:
+			1. make a new profile and parse it, storing the forest somewhere
+			2. pick a source gold profile and commence an "update" procedure relative to that profile (can be null)
+			3. any decisions from the gold profile are available/default-on in the new profile
+			4. new decisions made and old decisions accepted get saved to the decisions file in the new profile
+			5. navigation: skip condition is something like:
+				"there are multiple analyses, and the stored discriminants identified a set of cardinality exactly 1"
 
 things that would be *nice*:
-	[x]   figure out why svg rendering is so incredibly slow, especially for long sentences
-		- no idea why it's so slow, but moving from <svg> nested containers with X and Y attributes to <g> nested containers with transform=translate(X,Y) attributes made it enormously faster.
-	[ ]   pre-parse sentences and store their forests, to avoid having to spend time parsing while user is on-line
 	various UI enhancements
-		[ ] mouseover a discriminant you have chosen to hilight the sentence span
-		[ ] allow use of old-style discriminants
-		[ ] sentence-picker screen could show additional info about each item, e.g. number of parses, number of choices made, remaining ambiguity
-		[ ] a way to see an example [sub]tree before picking a discriminant
-			-- also perhaps an easy way to pull up the documentation for various rules/types
-		[ ] overlay/display of other annotation types (ILG, PTB)
-
-bugs:
-	- when selecting a longish sentence, sometimes the UI never fully loads?
-		- may have been being caused by "ignore" messages from ACE?
-		- some sentences (e.g. ws01 10010220) take a LONG time to get back
-			- 5.3 billion trees...
-				- with 35GB of RAM, ace tries 59k, out of which 54k succeed
-			- also ws01 10010030, claims 2.4 billion trees but ACE can't find any.
-				- with 35GB of RAM, ace tries 54k, out of which 46k succeed
-
-improvements:
-	- dealing with tokenization ambiguity properly
-		- display should be based on chart cells; but what to put in each cell? tricky.
-		- ideally should display either the raw text or the REPP output, and line the chart cells up on that...
-	- online help: see an example tree for a discriminant before picking it?
-	- ability to save results to a new profile
-	- when hovering over an existing choice (either an old choice or a new choice), show the corresponding sentence span
-	- allow selection of old-style discriminants (i.e. break down unary chains), optionally
-	- pre-parse sentences in a profile and store the forest to disk
+	[ ] allow selection of old-style discriminants (i.e. break down unary chains), optionally
+	[ ] sentence-picker screen could show additional info about each item, e.g. number of parses, number of choices made, remaining ambiguity
+	[ ] a way to see an example [sub]tree before picking a discriminant
+		-- also perhaps an easy way to pull up the documentation for various rules/types
+	[ ] overlay/display of other annotation types (ILG, PTB)
 
 improvements for special use cases:
 	- display various types of prior annotations:
@@ -70,33 +54,35 @@ recording decisions and preferences?
 				appear to match our token-based start/end positions
 	- then: button to write a new decisions/preferences file pair
 
-
-
-goal: either web-based or lui-based UI where user does:
-	1. initiate a session by picking a sentence from a tsdb profile
-	2. that sentence is parsed by the backend, and the backend records the packed forest and stays open with that forest in memory
-	3. the user is presented with a display of the sentence, and can mak decisions
-	4. record decisions to the tsdb profile (or a copy of it)
+recording forest in tsdb profile
+	- modify ace forest output to include all tokens, and their FSes, and assign them sensible IDs, and refer to those IDs in lexeme dtr lists (perhaps negative IDs?)
+	- new 'forest' relation, presumably
+		parse-id
+		edge-id
+		type	normal edge, root-capable edge, token
+		symbol	rule name, lexeme name, or token feature-structure
+		tfrom	parse chart vertex ID
+		tto		parse chart vertex ID
+		cfrom	i-input unicode character offset
+		cto		i-input unicode character offset
+		pack	list of edge-ids
+		dtrs	list of edge-ids
+	- preprocessing step to build the 'forest' file
+	- store it with regular edges, then do the unary closure online when loading a sentence -- check and be sure that won't be too slow? probably ok.
 
 
 done:
+	+ keep a cache of TSDB profiles; much faster than loading everytime we change sentences
+	+ apply gold inferred discriminants in addition to gold manual discriminants
+	+ pre-parse sentences and store their forests, to avoid having to spend time parsing while user is on-line
+	+ make sure we are supporting all the relevant old-style discriminants
+	+ hilight sentence span when mouseover a decision
+	+ speed up SVG rendering
+	+ use parse-node labels for tree drawing
+	+ display items with ambiguous tokenization properly
 	+ UI to allow inclusion of *some* but not *all* the old discriminants
 	+ item id display -- part of a prev/next/list interface
 	+ show parse tree when disambiguated (also for substrings when requested)
 	+ option to show *all* remaining discriminants (or, say, up to 20)
 	+ show lexical types instead of lexeme names
 	+ enable use of lexical type constraints from old tsdb decisions
-
-
-bug: ws01 10010590
-	first, turn on all old decisions
-	w_hyphen_plr@av_-_dg-cmp-so_le: 25 to 26   can be added any number of times with no effect...
-	... it turns out lots of discriminants don't work quite as hoped here.
-	it seems to be related to the MWE "so-called".
-	picking the (only) choice for "called" is supposed to cut us from 1.2 million to 853k trees (which I believe is a correct count), but in fact causes no change to the remaining tree counter.  this is because the ~400k trees with the MWE are not filtered out by that discriminant... they should  be, but the code is buggy I guess.
-
-	usually, to determine whether an edge is compatible with a constraint you ignore constraints that are not for the exact span of the edge yet do not cross it, since it is up to a daughter edge to realize or fail to realize that constraint.
-
-	however, when the edge in question is a MWE, and the constraint is selecting a constituent (or lexeme) that is a subspan of that MWE...
-	so, basically:
-		a lexical edge is incompatible with (positive) constraints describing smaller spans

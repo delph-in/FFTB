@@ -116,6 +116,12 @@ function render_tree(t)
 	return g;
 }
 
+function stop_popups()
+{
+	popup_to_stop.setAttributeNS(null, "style", "visibility: hidden;");
+	popup_to_stop = null;
+}
+
 function render_tree_popups(t, isleft, isright, istop)
 {
 	var dtrs_wtot = -DAUGHTER_HSPACE;
@@ -169,8 +175,8 @@ function render_tree_popups(t, isleft, isright, istop)
 
 	g.mywidth = wtot;
 
-	t.labelsvg.onmouseover = function() { galt.setAttributeNS(null, "style", "visibility: visible;"); }
-	galt.onmouseout = function() { galt.setAttributeNS(null, "style", "visibility: hidden;"); }
+	t.labelsvg.onmouseover = function() { galt.setAttributeNS(null, "style", "visibility: visible;"); popup_to_stop = galt; }
+	galt.onmouseout = stop_popups;//function() { stop_popups(); }
 
 	return g;
 }
@@ -190,7 +196,14 @@ function show_trees()
 		availWidth = host.clientWidth - 18;
 		availHeight = host.clientHeight - 18;
 	}
-	else if(svg.parentNode)svg.parentNode.removeChild(svg);
+	else
+	{
+		if(svg.parentNode)svg.parentNode.removeChild(svg);
+		if(message.error)
+		{
+			document.getElementById("disc-scroller").appendChild(document.createTextNode(message.error));
+		}
+	}
 
 	var myg = element("g");
 	svg.appendChild(myg);
@@ -232,19 +245,14 @@ function show_trees()
 			ov.appendChild(svg);
 			ov.style.display = "block";
 			myg.setAttribute("transform", "scale(1)");
-			//svg.style.width = max_w + "px";
-			//svg.style.height = total_h + "px";
-			//svg.setAttribute("style", "width: " + max_w + "px; height: " + total_h + "px;");
 		}
 		else
 		{
 			ds.appendChild(svg);
 			ov.style.display = "none";
 			myg.setAttribute("transform", "scale("+scale+")");
-			//svg.style.width = availWidth + "px";
-			//svg.style.height = availHeight + "px";
-			//svg.setAttribute("style", "width: " + availWidth + "px; height: " + availHeight + "px;");
 		}
+		stop_popups();
 	}
 
 	var html = message.ntrees + " remaining.";
@@ -259,7 +267,7 @@ var	first_hi;
 function dehilight()
 {
 	for(var x=0;x<hilight_set.length;x++)
-		hilight_set[x].style.color = "";
+		hilight_set[x].style.color = hilight_set[x].defaultColor;
 	hilight_set = [];
 }
 
@@ -361,26 +369,166 @@ function end_hilight_words(x)
 		dspanto = to;
 		refilter();
 	}
+	else dehilight();
 }
 
 function hilight_dec(from, to)
 {
-	var tokens = message.tokens.sort(
-		function(x,y) { return x.from - y.from; } );
-	for(var x in tokens)
+	var sentence = document.getElementById("sentence");
+	for(var x in sentence.childNodes)
 	{
-		var t = tokens[x];
-		if(t.from >= from && t.to <= to)
-			t.div.style.background = 'lightgreen';
+		var n = sentence.childNodes[x];
+		if(n.tokFrom == n.tokTo && from != to)
+		{
+			// skip the spaces on the ends of the span
+			if(n.tokFrom == from || n.tokFrom == to)
+				continue;
+		}
+		if(n.tokFrom >= from && n.tokTo <= to)
+			n.style.background = 'lightgreen';
 	}
 }
 
 function unhilight_dec()
 {
-	var tokens = message.tokens.sort(
-		function(x,y) { return x.from - y.from; } );
+	var sentence = document.getElementById("sentence");
+	for(var x in sentence.childNodes)
+	{
+		var n = sentence.childNodes[x];
+		if(n.style)n.style.background = 'none';
+	}
+}
+
+var showing_spacetext = 0;
+function hide_spacetext()
+{
+	var sentence = document.getElementById("sentence");
+	for(var x in sentence.childNodes)
+	{
+		var n = sentence.childNodes[x];
+		if(n.spacespan)
+			n.spacespan.innerHTML = "&nbsp;";
+	}
+	document.getElementById("st-hide").style.display="inline";
+	document.getElementById("st-show").style.display="none";
+	showing_spacetext = 0;
+}
+
+function show_spacetext()
+{
+	var sentence = document.getElementById("sentence");
+	for(var x in sentence.childNodes)
+	{
+		var n = sentence.childNodes[x];
+		if(n.spacespan)
+			n.spacespan.innerHTML = n.spacetext;
+	}
+	document.getElementById("st-hide").style.display="none";
+	document.getElementById("st-show").style.display="inline";
+	showing_spacetext = 1;
+}
+
+function find_token_vertices(tokens)
+{
+	var verts = [];
 	for(var x in tokens)
-		tokens[x].div.style.background = 'none';
+	{
+		var t = tokens[x];
+		if(!verts[t.from])verts[t.from] = {left:t.cfrom, right:t.cfrom};
+		else verts[t.from].right = t.cfrom;
+		if(!verts[t.to])verts[t.to] = {left:t.cto, right:t.cto};
+		else verts[t.to].left = t.cto;
+	}
+	verts = verts.sort(function(x,y) { return x.left - y.left; });
+	if(!verts.length)return [];
+	verts[0].left = 0;
+	verts[verts.length-1].right = message.item.length;
+	for(var x in verts)
+	{
+		var word = message.item.substring(verts[x].left, verts[x].right);
+		verts[x].text = word;
+		verts[x].id = parseInt(x);
+	}
+	return verts;
+}
+
+function renderable_span(text, from, to, has_bar, is_space)
+{
+	var d = document.createElement("div");
+	d.defaultColor = is_space?"#aaa":"black";
+	d.style.cssFloat = "left";
+	d.style.margin = "0px 0px 0px 0px";
+	d.style.color = d.defaultColor;
+	var t = document.createElement("table");
+	d.appendChild(t);
+	var b = document.createElement("tbody");
+	t.style.margin = "0px 0px 0px 0px";
+	t.style.padding = "0px 0px 0px 0px";
+	t.style.borderCollapse = "collapse";
+	t.style.border = "none";
+	t.appendChild(b);
+
+	// text row
+	var r = document.createElement("tr");
+	b.appendChild(r);
+	var cell = document.createElement("td");
+	r.appendChild(cell);
+	//cell.appendChild(document.createTextNode(text));
+	var span = document.createElement("span");
+	if(is_space)
+	{
+		d.spacespan = span;
+		d.spacetext = text;
+		span.innerHTML = showing_spacetext?text:"&nbsp;";
+	}
+	else span.innerHTML = text;
+	cell.appendChild(span);
+
+	// green bar row
+	r = document.createElement("tr");
+	b.appendChild(r);
+	cell = document.createElement("td");
+	cell.style.background = has_bar?"green":"none";
+	//cell.style.paddingLeft = "5px";
+	r.appendChild(cell);
+
+	d.tokFrom = from;
+	d.tokTo = to;
+
+	if(dspanto)
+	{
+		var hit = 0;
+		if(d.tokFrom >= dspanfrom && d.tokTo <= dspanto &&
+			!(is_space && ((d.tokFrom == dspanfrom && d.tokTo == dspanfrom) || (d.tokFrom == dspanto && d.tokTo == dspanto))))
+		{
+			hilight_set.push(d);
+			d.style.color = "red";
+			hit = 1;
+		}
+	}
+	var mobile = (/iphone|ipad|ipod|android|blackberry|mini|windows\sce|palm/i.test(navigator.userAgent.toLowerCase()));  
+	if(mobile)
+	{
+		d.addEventListener("touchstart", function(x){return function(ev){ev.preventDefault();begin_hilight_words(x);}}(d), false);
+		d.addEventListener("touchmove", function(ev){
+			var x=document.elementFromPoint(ev.touches[0].clientX, ev.touches[0].clientY);
+			while(x && x.nodeName.toLowerCase() != "div")x = x.parentNode;
+			ev.preventDefault();if(x)drag_hilight_words(x);
+			}, false);
+		d.addEventListener("touchend", function(x){return function(ev){ev.preventDefault();end_hilight_words(x);}}(d), false);
+	}
+	else
+	{
+		d.onmousedown = function(x){return function(ev){ev.preventDefault();begin_hilight_words(x);if(ev.stopPropagaton)ev.stopPropagation(); else ev.cancelBubble = true;}}(d);
+		d.onmousemove = function(x){return function(ev){ev.preventDefault();drag_hilight_words(x);if(ev.stopPropagaton)ev.stopPropagation(); else ev.cancelBubble = true;}}(d);
+		d.addEventListener("mouseup", function(x){return function(ev){ev.preventDefault();end_hilight_words(x);if(ev.stopPropagaton)ev.stopPropagation(); else ev.cancelBubble = true;}}(d), false);
+	}
+	d.addEventListener("click", function(x){return function(ev){ev.preventDefault();if(ev.stopPropagaton)ev.stopPropagation(); else ev.cancelBubble = true;}}(d), false);
+
+	document.getElementById("st-hide").addEventListener("click", function(x){return function(ev){ev.preventDefault();if(ev.stopPropagaton)ev.stopPropagation(); else ev.cancelBubble = true;show_spacetext();}}(d), false);
+	document.getElementById("st-show").addEventListener("click", function(x){return function(ev){ev.preventDefault();if(ev.stopPropagaton)ev.stopPropagation(); else ev.cancelBubble = true;hide_spacetext();}}(d), false);
+
+	return d;
 }
 
 function show_sentence()
@@ -404,6 +552,29 @@ function show_sentence()
 	}
 
 	while(sentence.firstChild)sentence.removeChild(sentence.firstChild);
+
+	var vertices = find_token_vertices(message.tokens);
+	message.vertices = vertices;
+	var last_vert = null;
+	var B = 0;
+	for(var x in vertices)
+	{
+		var vert = vertices[x];
+		if(last_vert)
+		{
+			var word = message.item.substring(last_vert.right, vert.left);
+			sentence.appendChild(renderable_span(word, last_vert.id, vert.id, bars[B++], 0));
+		}
+		last_vert = vert;
+		//sentence.appendChild(renderable_span(vert.text + "&nbsp;", vert.id, vert.id, bars[B++], 1));
+		var sptext = vert.text.replace(/ /,"&nbsp;");
+		if(sptext=="")sptext="&nbsp;";	// need something there or the greenline will go in the wrong place...
+		sentence.appendChild(renderable_span(sptext, vert.id, vert.id, bars[B++], 1));
+	}
+
+	/*sentence.appendChild(document.createElement("br"));
+	sentence.appendChild(document.createElement("br"));
+
 	for(var x in tokens)
 	{
 		var d = document.createElement("div");
@@ -470,7 +641,7 @@ function show_sentence()
 			d.addEventListener("mouseup", function(x){return function(ev){ev.preventDefault();end_hilight_words(x);if(ev.stopPropagaton)ev.stopPropagation(); else ev.cancelBubble = true;}}(d), false);
 		}
 		d.addEventListener("click", function(x){return function(ev){ev.preventDefault();if(ev.stopPropagaton)ev.stopPropagation(); else ev.cancelBubble = true;}}(d), false);
-	}
+	}*/
 	window.onmouseup = cancel_hilight;
 	document.getElementById("yellow").onclick = no_hilight;
 }
@@ -550,17 +721,24 @@ function show_decisions()
 		var od = message.olddec;
 		d = document.getElementById("old-decisions-list");
 		d.innerHTML = "";
-		for(var x in od)
+		for(var inferred in [0,1])
 		{
-			var nixer = "";
-			var link = "<a href='javascript:nixolddecision(" + x + ");'>";
-			if(use_old_decs[x])
-				nixer = " [on|" + link + "off</a>]";
-			else nixer = " [" + link + "on</a>|off]";
-			var fields = od[x].split(":");
-			var span = fields[2].split("-");
-			var from = span[0], to = span[1];
-			d.innerHTML += "<span onmouseover='hilight_dec("+from+","+to+")' onmouseout='unhilight_dec()'>" + od[x] + nixer + "</span><br/>";
+			if(inferred == 0)d.innerHTML += "<b>Manual:</b><br/>";
+			if(inferred == 1)d.innerHTML += "<b>Inferred:</b><br/>";
+			for(var x in od)
+			{
+				var fields = od[x].split(":");
+				if(fields[3] != inferred)continue;
+				var nixer = "";
+				var link = "<a href='javascript:nixolddecision(" + x + ");'>";
+				if(use_old_decs[x])
+					nixer = " [on|" + link + "off</a>]";
+				else nixer = " [" + link + "on</a>|off]";
+				var span = fields[2].split("-");
+				var from = span[0], to = span[1];
+				var txt = fields[0] + ": " + from + " to " + to + " / " + fields[1];
+				d.innerHTML += "<span onmouseover='hilight_dec("+from+","+to+")' onmouseout='unhilight_dec()'>" + txt.toLowerCase() + nixer + "</span><br/>";
+			}
 		}
 	}
 }
@@ -569,6 +747,33 @@ function select_discriminant(d)
 {
 	decisions.push({type:d.sign,from:d.from,to:d.to});
 	refilter();
+}
+
+function open_window(url)
+{
+	window.open(url, '_blank');
+}
+
+function open_lextype_docs(event, lextype)
+{
+	if(event.shiftKey)
+	{
+		if(event.stopPropagation)event.stopPropagation();
+		else event.cancelBubble = true;
+		event.preventDefault();
+		return open_window("http://lingo.stanford.edu/~danf/cgi-bin/ERG_1010/description.cgi?type=" + lextype);
+	}
+}
+
+function open_rule_docs(event, rule)
+{
+	if(event.shiftKey)
+	{
+		if(event.stopPropagation)event.stopPropagation();
+		else event.cancelBubble = true;
+		event.preventDefault();
+		return open_window("http://moin.delph-in.net/ErgRules");
+	}
 }
 
 function buildUnaryChain(sign)
@@ -587,6 +792,11 @@ function buildUnaryChain(sign)
 		first = 0;
 		var n = document.createElement("div");
 		n.appendChild(document.createTextNode(signs[x]));
+		if(signs[x].substring(signs[x].length-3) == "_le")
+			n.onclick = function(s) { return function(ev)
+				{ open_lextype_docs(ev, s); }; }(signs[x]);
+		else n.onclick = function(s) { return function(ev)
+				{ open_rule_docs(ev, s); }; }(signs[x]);
 		d.appendChild(n);
 	}
 	return d;
@@ -595,6 +805,10 @@ function buildUnaryChain(sign)
 function getYield(from, to)
 {
 	var str = "";
+	var cfrom = message.vertices[from].right;
+	var cto = message.vertices[to].left;
+	return message.item.substring(cfrom, cto);
+
 	var tokens = message.tokens.sort(
 		function(x,y) { return x.from - y.from; } );
 	for(var x in tokens)
@@ -647,7 +861,15 @@ function show_discriminants()
 		count.appendChild(document.createTextNode(discs[x].count + " trees"));
 		dd.appendChild(count);
 		dd.discriminant = discs[x];
-		dd.onclick = function(x){return function(ev){select_discriminant(x.discriminant);}}(dd);
+		dd.onclick = function(x){return function(ev){
+			unhilight_dec(); select_discriminant(x.discriminant);}}(dd);
+		if(dspan == "")
+		{
+			dd.onmouseover = function(x){return function(ev){
+				hilight_dec(discs[x].from, discs[x].to);}}(x);
+			dd.onmouseout = function(x){return function(ev){
+				unhilight_dec();}}();
+		}
 		div.appendChild(dd);
 	}
 }
