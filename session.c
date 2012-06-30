@@ -225,40 +225,111 @@ void	web_session(FILE	*f, char	*query)
 
 	char	*constraints = strchr(query, ';');
 	if(constraints)constraints++;
+	else { webreply(f, "500 bad syntax"); return; }
+
+	char	*rqc = constraints;
+	constraints = strchr(constraints, ';');
+	int	requesting_constraints = atoi(rqc);
+	if(constraints)constraints++;
+	else { webreply(f, "500 bad syntax"); return; }
 
 	char	*span = constraints;
 	constraints = strchr(constraints, ';');
 	if(constraints)constraints++;
+	else { webreply(f, "500 bad syntax"); return; }
 	int	from,to, have_span = 0;
 	if(2 == sscanf(span, "%d:%d;", &from, &to))
 		have_span = 1;
 
 	char	*d;
-	int		nc=0;
+	int		i, nc=0;
 	struct constraint	*c=NULL;
-	for(d=strtok(constraints,"&");d;d=strtok(NULL,"&"))
+	char	*olddecbits = NULL;
+	if(!requesting_constraints)
 	{
-		int	from, to;
-		char	sign[128];
-		assert(strlen(d) < 128);
-		int	type = -1;
-		if(3 == sscanf(d, "%[^=]=%d-%d", sign, &from, &to))
-			type = constraintExactly;
-		else if(3 == sscanf(d, "%[^:]:+:%d-%d", sign, &from, &to))
-			type = constraintPresent;
-		else if(3 == sscanf(d, "%[^:]:-:%d-%d", sign, &from, &to))
-			type = constraintAbsent;
-		assert(type != -1);
-		nc++;
-		c = realloc(c,sizeof(*c)*nc);
-		c[nc-1].sign = strcmp(sign, "span")?cgidecode(sign):NULL;
-		c[nc-1].from = from;
-		c[nc-1].to = to;
-		c[nc-1].type = type;
-		c[nc-1].inferred = 0;
-		if(!strcmp(sign, "span"))
-			c[nc-1].type = constraintIsAConstituent;
-		printf("constraint: %s [%d-%d] type %d\n", sign, from, to, type);
+		for(d=strtok(constraints,"&");d;d=strtok(NULL,"&"))
+		{
+			if(!strncmp(d, "_olddecs=", 9))
+			{
+				olddecbits = d + 9;
+				continue;
+			}
+
+			int	from, to;
+			char	sign[128];
+			assert(strlen(d) < 128);
+			int	type = -1;
+			int inferred = 0;
+			if(4 == sscanf(d, "%[^:]:=:%d-%d:%d", sign, &from, &to, &inferred))
+				type = constraintExactly;
+			else if(4 == sscanf(d, "%[^:]:+:%d-%d:%d", sign, &from, &to, &inferred))
+				type = constraintPresent;
+			else if(4 == sscanf(d, "%[^:]:-:%d-%d:%d", sign, &from, &to, &inferred))
+				type = constraintAbsent;
+			if(type == -1)
+			{
+				printf("bad constraint: '%s'\n", d);
+				badconst:
+				webreply(f, "500 bad constraint");
+				if(c)
+				{
+					int i;
+					for(i=0;i<nc;i++)
+						if(c[i].sign)free(c[i].sign);
+					free(c);
+				}
+				return;
+			}
+			nc++;
+			c = realloc(c,sizeof(*c)*nc);
+			c[nc-1].sign = strcmp(sign, "span")?cgidecode(sign):NULL;
+			c[nc-1].from = from;
+			c[nc-1].to = to;
+			c[nc-1].type = type;
+			c[nc-1].inferred = inferred;
+			if(!strcmp(sign, "span"))
+				c[nc-1].type = constraintIsAConstituent;
+			printf("constraint: %s [%d-%d] type %d\n", sign, from, to, type);
+		}
+		// save the local_dec array
+		if(S->local_dec)
+		{
+			for(i=0;i<S->nlocal_dec;i++)
+				if(S->local_dec[i].sign)free(S->local_dec[i].sign);
+			free(S->local_dec);
+		}
+		S->local_dec = nc?malloc(sizeof(struct constraint)*nc):NULL;
+		S->nlocal_dec = nc;
+		memcpy(S->local_dec, c, sizeof(struct constraint)*nc);
+		for(i=0;i<S->nlocal_dec;i++)
+			if(S->local_dec[i].sign)
+				S->local_dec[i].sign = strdup(S->local_dec[i].sign);
+	}
+	else
+	{
+		// copy the local_dec array to c
+		c = S->nlocal_dec?malloc(sizeof(struct constraint)*S->nlocal_dec):NULL;
+		nc = S->nlocal_dec;
+		memcpy(c, S->local_dec, sizeof(struct constraint)*nc);
+		for(i=0;i<nc;i++)
+			if(c[i].sign)
+				c[i].sign = strdup(c[i].sign);
+	}
+	char	*bits = olddecbits;
+	for(i=0;i<S->ngold_dec;i++)
+	{
+		if(bits && !bits[i])goto badconst;
+		if((!bits && (!requesting_constraints || S->gold_active[i]))
+			|| (bits && bits[i] == '1'))
+		{
+			// include this gold constraint
+			nc++;
+			c = realloc(c,sizeof(*c)*nc);
+			c[nc-1] = S->gold_dec[i];
+			c[nc-1].sign = strdup(c[nc-1].sign);
+			S->gold_active[i] = 1;
+		}
+		else S->gold_active[i] = 0;
 	}
 	fflush(stdout);
 
@@ -277,7 +348,7 @@ void	web_session(FILE	*f, char	*query)
 	long long	ntrees = count_remaining_trees(S->parse, c, nc);
 	fprintf(f, "ntrees: %lld,\n", ntrees);
 	fprintf(f, "tokens: [");
-	int i, slen = 1;
+	int slen = 1;
 	for(i=0;i<S->parse->ntokens;i++)
 	{
 		struct token	*t = S->parse->tokens[i];
@@ -324,8 +395,9 @@ void	web_session(FILE	*f, char	*query)
 		{
 			if(i)fprintf(f, ",");
 			struct constraint	*C = &S->gold_dec[i];
-			fprintf(f, "\"%s:%c:%d-%d:%d\"", C->sign, (C->type == constraintPresent)?'+':'-',
-				C->from, C->to, C->inferred);
+			fprintf(f, "{sign:\"%s\",type:\"%s\",from:%d,to:%d,inferred:%d,enabled:%d}",
+				C->sign, (C->type == constraintPresent)?"+":"-",
+				C->from, C->to, C->inferred, S->gold_active[i]);
 		}
 		fprintf(f, "],");
 	}
@@ -336,11 +408,12 @@ void	web_session(FILE	*f, char	*query)
 		{
 			if(i)fprintf(f, ",");
 			struct constraint	*C = &S->local_dec[i];
-			char	ch = '=';
-			if(C->type == constraintPresent)ch = '+';
-			if(C->type == constraintAbsent)ch = '-';
-			if(C->type == constraintIsAConstituent)ch = '@';
-			fprintf(f, "\"%s:%c:%d-%d:%d\"", C->sign, ch, C->from, C->to, C->inferred);
+			char	*ch = "=";
+			if(C->type == constraintPresent)ch = "+";
+			if(C->type == constraintAbsent)ch = "-";
+			if(C->type == constraintIsAConstituent)ch = "@";
+			fprintf(f, "{sign:\"%s\",type:\"%s\",from:%d,to:%d,inferred:%d,enabled:1}",
+				C->sign, ch, C->from, C->to, C->inferred);
 		}
 		fprintf(f, "],");
 	}

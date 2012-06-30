@@ -18,6 +18,8 @@
 #include	"tree.h"
 #include	"treebank.h"
 
+#define	ERG_PATH	"/home/sweaglesw/cdev/ace/erg-1010.dat"
+
 char	*tsdb_home_path = "/home/sweaglesw/logon/lingo/lkb/src/tsdb/home/";
 
 void	html_headers(FILE	*f, char	*title)
@@ -31,6 +33,38 @@ void	html_footers(FILE	*f)
 {
 	fprintf(f, "</body></html>\n");
 	fclose(f);
+}
+
+void	web_save(FILE	*f, char	*query)
+{
+	assert(strlen(query) >= 6);
+	int	id = atoi(query+6);
+	struct session	*S = get_session(id);
+	if(!S) { webreply(f, "404 no such session"); return; }
+
+	if(!strncmp(query, "/save?", 6))
+	{
+		if(!S->parse_id) { webreply(f, "500 no parse id"); return; }
+		// save decisions to the 'decision' relation
+		// possibly also record a 'preference' tuple and a 'result' tuple
+		struct constraint	*cons = malloc(sizeof(struct constraint) * (S->nlocal_dec + S->ngold_dec));
+		int	i, ncons = 0;
+		for(i=0;i<S->nlocal_dec;i++)
+		{
+			struct constraint	*c = S->local_dec+i;
+			cons[ncons] = *c; cons[ncons++].sign = c->sign?strdup(c->sign):NULL;
+		}
+		for(i=0;i<S->ngold_dec;i++)
+		{
+			struct constraint	*c = S->gold_dec+i;
+			if(!S->gold_active[i])continue;
+			cons[ncons] = *c; cons[ncons++].sign = c->sign?strdup(c->sign):NULL;
+		}
+		int result = save_decisions(S->profile_id, S->parse_id, ncons, cons);
+		free(cons);
+		if(result == 0)webreply(f, "200 ok");
+		else webreply(f, "500 fail");
+	}
 }
 
 void	web_nav(FILE	*f, char	*query)
@@ -81,6 +115,8 @@ void	web_nav(FILE	*f, char	*query)
 	free(cgi);
 	fclose(f);
 	tsdb_free_profile(profile);
+
+	end_session(S);
 }
 
 /* system for picking a profile and a sentence */
@@ -117,18 +153,19 @@ void	web_slash(FILE	*f, char	*path)
 		char	title[10240];
 		sprintf(title, "ACE Treebanker: %s", path);
 		html_headers(f, title);
+		char	*cgi = cgiencode(path);
+		fprintf(f, "<a href=\"/private/update?%s\">Automatic Update</a>\n", cgi);
 		fprintf(f, "<table>\n");
 		for(i=0;i<items->ntuples;i++)
 		{
 			char	*input = items->tuples[i][item_input];
 			char	*iid = items->tuples[i][item_id];
-			char	*cgi = cgiencode(path);
 			fprintf(f, "<tr><td><a href=\"/private/parse?profile=%s&id=%s\">%s</a></td>\n",
 				cgi, iid, iid);
 			fprintf(f, "<td>%s</td></tr>\n",
 				input);
-			free(cgi);
 		}
+		free(cgi);
 		fprintf(f, "</table>\n");
 		html_footers(f);
 		tsdb_free_profile(profile);
@@ -146,6 +183,159 @@ void	web_slash(FILE	*f, char	*path)
 		free(names);
 		html_footers(f);
 	}
+}
+
+long long	update_item(struct tsdb	*gold, struct tsdb	*prof, char	*iid)
+{
+	// plan:
+	//   read the gold decisions from 'gold'
+	//   read the forest from 'prof'
+	//   apply those decisions and see how many results are left
+	//   if there's a unique result, record it.
+
+	char	*gold_pid = get_pid_by_id(gold, iid);
+	char	*prof_pid = get_pid_by_id(prof, iid);
+	if(!gold_pid) { fprintf(stderr, "no gold parse for %s\n", iid); return -1; }
+	assert(prof_pid);
+
+	printf("updating %s ; gold pid %s, prof pid %s\n", iid, gold_pid, prof_pid);
+
+	struct constraint	*golddecs = NULL;
+	int ngolddecs = get_decisions(gold, gold_pid, &golddecs);
+	if(ngolddecs < 0) { fprintf(stderr, "unable to get gold decisions for %s\n", iid); return -1; }
+
+	printf("loaded %d gold decisions\n", ngolddecs);
+
+	char	*gold_pref = get_pref_rid(gold, gold_pid);
+	struct tree	*goldpref_tree = NULL;
+	if(gold_pref)
+	{
+		char	*deriv = get_result(gold, gold_pid, gold_pref);
+		if(deriv)
+		{
+			char	*copy = strdup(deriv);
+			goldpref_tree = string_to_tree(copy);
+			free(copy);
+		}
+	}
+
+	struct parse	*P = load_forest(prof, prof_pid);
+	if(!P) { fprintf(stderr, "unable to get parse forest for %s\n", iid); return -1; }
+	struct parse	*newP = do_unary_closure(P);
+	free_parse(P);
+	P = newP;
+	if(!P) { fprintf(stderr, "unable to perform unary closure for %s\n", iid); return -1; }
+
+	printf("loaded parse forest with %d edges (%d roots)\n", P->nedges, P->nroots);
+
+	long long	remaining = count_remaining_trees(P, golddecs, ngolddecs);
+	printf("under gold decisions, %lld possible tree(s)\n", remaining);
+	if(remaining == 0 && goldpref_tree)
+	{
+		if(1 == tree_satisfies_constraints(goldpref_tree, golddecs, ngolddecs))
+			printf(" ... but I agree that the gold stored tree satisfies\n");
+		int i;
+		print_forest(P);printf("...\n\n\n");
+		for(i=0;i<P->nedges;i++)
+		{
+			struct tb_edge	*e = P->edges[i];
+			printf("edge #%d (root=%d):  %lld unpackings, %lld solutions\n",
+				e->id, e->is_root, e->unpackings, e->solutions);
+		}
+	}
+	if(remaining > 1 || remaining == 0)
+		return remaining;	// failed to identify exactly 1 tree
+
+	printf(" that means a unique tree.\n");
+	int i;
+	for(i=0;i<P->nedges;i++)
+		if(P->edges[i]->unpackings == 1 && P->edges[i]->solutions == 1 && P->edges[i]->is_root)break;
+	assert(i < P->nedges);
+	struct tree	*t = extract_tree(P->edges[i], 0);
+
+	printf("extracted the tree: %p\n", t);
+	return 1;
+}
+
+void	web_update(FILE	*f, char	*path)
+{
+	int	is_profile = 0;
+	int filter(const struct dirent	*d)
+	{
+		if(d->d_name[0]=='.')return 0;
+		if(!strcmp(d->d_name, "relations"))is_profile = 1;
+		return 1;
+	}
+	struct dirent	**names;
+	if(strchr(path, '.') || strlen(path)>512)
+		{ webreply(f, "500 bad path"); return; }
+	char	fullpath[10240];
+	sprintf(fullpath, "%s%s", tsdb_home_path, path);
+	int i,n = scandir(fullpath, &names, filter, alphasort);
+	if(n < 0) { webreply(f, "500 unable to read TSDB home directory"); return; }
+
+	for(i=0;i<n;i++)
+		free(names[i]);
+	free(names);
+
+	if(!is_profile) { webreply(f, "500 unable to update a directory; specify a profile."); return; }
+
+	char	*goldpath = NULL;
+	if(!strcmp(path, "/trec-test/"))
+		goldpath = "/gold/erg/trec/";
+	if(!strcmp(path, "/ws01-test/"))
+		goldpath = "/gold/erg/ws01/";
+
+	if(!goldpath) { webreply(f, "500 I don't know the gold profile for that path."); return; }
+
+	char	goldfullpath[10240];
+	sprintf(goldfullpath, "%s%s", tsdb_home_path, goldpath);
+
+	struct tsdb	*profile = cached_get_profile_and_pin(fullpath);
+	if(!profile) { webreply(f, "500 unable to read TSDB profile"); return; }
+	struct tsdb	*goldprof = cached_get_profile_and_pin(goldfullpath);
+	if(!goldprof) { webreply(f, "500 unable to read gold TSDB profile"); return; }
+
+	struct relation	*items = get_relation(profile, "item");
+	int	item_input = get_field(items, "i-input", "string");
+	int	item_id = get_field(items, "i-id", "integer");
+
+	char	title[10240];
+	sprintf(title, "ACE Treebanker: %s", path);
+	html_headers(f, title);
+	char	*cgi = cgiencode(path);
+
+	fprintf(f, "<table>\n");
+	for(i=0;i<items->ntuples;i++)
+	{
+		char	*iid = items->tuples[i][item_id];
+		char	*input = items->tuples[i][item_input];
+		char	*parse_id = get_pid_by_id(profile, iid);
+		char	*color = "black";
+		if(!parse_id)
+			color = "lightgray";
+		else
+		{
+			char	*pref = get_pref_rid(profile, parse_id);
+			if(pref)color = "#8f8";
+			else
+			{
+				long long status = update_item(goldprof, profile, iid);
+				if(status == 1)color = "green";
+				else if(status == 0)color = "#f88";
+				else if(status < 0)color = "red";
+				else color = "#ff8";
+			}
+		}
+		fprintf(f, "<tr style='background: %s;'><td><a href=\"/private/parse?profile=%s&id=%s\">%s</a></td>\n", color, cgi, iid, iid);
+		fprintf(f, "<td>%s</td></tr>\n",
+			input);
+	}
+	free(cgi);
+	fprintf(f, "</table>\n");
+	html_footers(f);
+
+	unpin_all();
 }
 
 /* system for receiving web requests */
@@ -177,6 +367,8 @@ void	web_callback(int	fd, void	*ptr, struct sockaddr_in	addr)
 			webfile(f, "text/html", "assets/index.html");
 		else if(!strncmp(path, "/next?", 6) || !strncmp(path, "/prev?", 6))
 			web_nav(f, path);
+		else if(!strncmp(path, "/update?", 8))
+			web_update(f, path+8);
 		else web_slash(f, path);
 		//else webreply(f, "404 not found");
 	}
@@ -184,6 +376,8 @@ void	web_callback(int	fd, void	*ptr, struct sockaddr_in	addr)
 	{
 		if(!strncmp(path, "/session?", 9))
 			web_session(f, path+9);
+		else if(!strncmp(path, "/save?", 6))
+			web_save(f, path);
 		else fclose(f);
 	}
 	fflush(stdout);
@@ -194,14 +388,24 @@ void	pipe_handler(int s)
 	signal(SIGPIPE, pipe_handler);
 }
 
+char	*grammar_ace_image_path = NULL;
+char	*grammar_roots = "root_strict root_inffrag root_informal root_frag";
+
 main(int	argc, char	*argv[])
 {
+	if(argc == 1)grammar_ace_image_path = ERG_PATH;
+	else
+	{
+		grammar_ace_image_path = argv[1];
+		if(argc > 2)grammar_roots = argv[2];
+	}
+
 	int	fd = tcpip_list(9080);
 	setlocale(LC_ALL, "");
 	register_server_fd(fd, web_callback, NULL);
 	signal(SIGINT, quit_server_event_loop);
 	signal(SIGPIPE, pipe_handler);
-	ace_load_grammar(ERG_PATH);
-	//daemonize("web.log");
+	ace_load_grammar(grammar_ace_image_path);
+	daemonize("web.log");
 	server_event_loop();
 }

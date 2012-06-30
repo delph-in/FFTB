@@ -55,6 +55,7 @@ struct session
 	char	*profile_id, *item_id;
 	char	*gold_profile_id;
 	char	*input;
+	char	*parse_id;
 	struct parse	*parse;
 	int		id;
 	struct tree	*pref_tree;
@@ -62,15 +63,26 @@ struct session
 	struct constraint	*local_dec;
 	int					ngold_dec;
 	struct constraint	*gold_dec;
+	char				*gold_active;
 };
 
 struct parse	*do_unary_closure(struct parse	*Pin);
 struct session	*get_session(int	id);
 long long	count_remaining_trees(struct parse	*P, struct constraint	*c, int	nc);
 struct session	*get_session(int	id);
+void	free_parse(struct parse	*P);
+
+struct tsdb	*cached_get_profile_and_pin(char	*path);
+char	*get_pid_by_id(struct tsdb	*profile, char	*i_id);
+char	*get_pref_rid(struct tsdb	*profile, char	*pid);
+char	*get_result(struct tsdb	*profile, char	*pid, char	*rid);
+int	get_decisions(struct tsdb	*profile, char	*pid, struct constraint	**Decs);
+struct parse	*load_forest(struct tsdb	*profile, char	*pid);
+struct tree	*extract_tree(struct tb_edge	*e, int	ucdepth);
 
 extern char *tsdb_home_path;
 
-#define	ERG_PATH	"/home/sweaglesw/cdev/ace/erg-1010.dat"
+extern char	*grammar_ace_image_path;
+extern char *grammar_roots;
 
 #endif

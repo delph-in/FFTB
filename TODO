@@ -13,6 +13,10 @@ things that *must* be done before any kind of release:
 			5. navigation: skip condition is something like:
 				"there are multiple analyses, and the stored discriminants identified a set of cardinality exactly 1"
 
+strange bug:
+	ws01 item 10030770 has 2 remaining trees (with all gold on), but no discriminants -- and all the lexemes are unambiguous.
+		in that same item, and also in 10030700, there is another UI glitch where hyphenated words are being displayed incorrectly
+
 things that would be *nice*:
 	various UI enhancements
 	[ ] allow selection of old-style discriminants (i.e. break down unary chains), optionally

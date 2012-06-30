@@ -1,0 +1,59 @@
+[x] (sub)tree presentation: use short labels instead of rule names, mouse-over to get full label
+
+Dan likes the unary rule projection rendering; Emily isn't quite sure.
+
+show *a* tree (highest ranking perhaps?) for a discriminant
+
+
+sometimes, would like to be able to see the top ranked (statistically) tree, and just decide if it's right
+	-- further ideas on this:
+		- selective unpacking should let us pull the top-ranked tree subject to constraints
+		- we should also be able to compute the maxent normalization term without too much trouble
+			- compute total score for edge X and all subtree sections below it for all unpackings, subject to X having a particular GP[3] ancestry, say
+			- then total score for edge X regardless of ancestry is just sum over such ancestry contexts, and total score for the whole forest is sum over root edges
+			- allows presentation of absolute probabilities, both for a *tree* and for an *edge*, and perhaps also for a *discriminant*... that could be very handy.
+				- two types of probability:
+					absolute (out of all unpackings)
+					conditional (out of the unpackings available with a certain set of decisions)
+				- when conditional probability of top ranked tree becomes sufficiently high, the operator may want to just look at that tree
+	-- but then what discriminants would we record?
+	-- machine ranker to pick a minimal subset of the inferred discriminants for that tree, then ask the annotator to validate that set as reasonable
+
+[x] when displaying a discriminant in shorthand, mouse over it to highlight the sentence span
+
+
+[x] liba get_http_request() has a 1024-char internal buffer... that needs to be extended a lot, since we are passing long URLs full of constraints.
+
+[x] for ambiguous tokenization, e.g. ws01 10012170, we get doubled tokens appearing.  solution: display the *original* input text, and guess character positions for each post-token-mapping vertex.  we know most of them, guess the remainder. (how?)
+
+[x] online option to display or hide text that is hiding between tokens
+
+[x] when zooming an svg tree, turn off all the visible node labels...
+
+the chosen tree can fail to exist.  e.g. item 10010130 in ws01,
+	dan's discriminants get us down to 2 apparently reasonable trees, but 1 of them fails to reconstruct
+	we now tell the user that their tree doesn't exist when we try to display the tree (reconstruction failed when we tried to figure out parse node labels)
+	it would be nice to never even give the user the *option* of going down a path with no real trees...
+	baring that, it would be nice to tell them about the problem as soon as they *start* down such a path, and it would be nice to *remember* that that path is no good (somehow).
+		- note:
+			there are two possible causes for reconstruction failures from a packed forest.
+			a. the packing restrictor may have discarded combinatorially relevant info
+				- note that the root path of the AVM is kind of on the packing restrictor, in that it gets generalized to `sign'.  this enables a significant amount of worthwhile extra packing for the ERG, because the ERG essentially never looks at the root type of a sign to make a constraint.  for this problem item 10010130, it turns out the ERG makes an exception to that pattern; the root type is used to block wrong orderings of the w_drop-iright/w_drop-ileft rules.
+			b. when packing under subsumption, packed representatives of a rule's two daughters may be more specific than their hosts in incompatible ways
+		- we could in theory get rid of problem (a) by removing things from the packing restrictor, but that would reduce packing and slow us down
+		- we could in theory get rid of problem (b) by packing under equivalence, but that slows parsing down a lot for long sentences, and makes the forests substantially bigger.
+		- can at least solve this particular issue by not generalizing AVM root types when treebanking.
+
+
+for the future when using PTB input:
+	- inputs are (S (trees with) (labels))
+	- glue code to transform that into
+		a) plain text strings (space-delimited) and
+		b) yy-format token chart keeping the POS tags and with characterization relative to (a)
+	- feed (b) to ACE, record the forest
+	- feed (a) to the GUI for displaying the sentence
+
+
+to be aware: ACE tagger and TNT are a bit different, so the forests will be different; occasionally existing manual decisions will rule out all trees.
+
+
