@@ -143,7 +143,6 @@ struct tree	*extract_tree(struct tb_edge	*e, int	ucdepth)
 	else
 	{
 		t->ndaughters = e->ndaughters;
-		t->daughters = calloc(sizeof(struct tree*),t->ndaughters);
 		if(!e->ndaughters)
 		{
 			// lexeme node
@@ -167,8 +166,12 @@ struct tree	*extract_tree(struct tb_edge	*e, int	ucdepth)
 			for(j=0;j<orth->ntokens;j++)orth->tokens[j] = strdup("");
 			orth->cfrom = orth->cto = -1;
 		}
-		else for(i=0;i<e->ndaughters;i++)
-			t->daughters[i] = extract_tree(e->daughter[i], 0);
+		else
+		{
+			t->daughters = calloc(sizeof(struct tree*),t->ndaughters);
+			for(i=0;i<e->ndaughters;i++)
+				t->daughters[i] = extract_tree(e->daughter[i], 0);
+		}
 	}
 	return t;
 }

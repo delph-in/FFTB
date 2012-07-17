@@ -71,6 +71,7 @@ struct tsdb	*cached_get_profile_and_pin(char	*path)
 	cache = realloc(cache, sizeof(struct profile_cache)*ncache);
 	cache[ncache-1].path = strdup(path);
 	cache[ncache-1].profile = T;
+	cache[ncache-1].pin = 1;
 	return T;
 }
 
@@ -359,6 +360,7 @@ void	free_parse(struct parse	*P)
 		free(e->sign_with_lexnames);
 		free(e->pack);
 		free(e->daughter);
+		free(e->parents);
 		free(e);
 	}
 	free(P->edges);
@@ -416,15 +418,22 @@ int	load_token_from_tsdb(struct parse	*P, int	id, char	*structure, int	from, int
 	return 0;
 }
 
-int	is_token_edge(char	*symbol)
+/*int	is_token_edge(char	*symbol)
 {
 	if(!strncmp(symbol, "token [", 6))return 1;
 	return 0;
-}
+}*/
 
-int	load_edge_from_tsdb(struct parse	*P, int	id, char	*symbol, int	is_root, int	from, int	to, char	*dtr_list, char	*alt_list)
+int	load_edge_from_tsdb(struct parse	*P, struct hash	*id_to_edge, int	id, char	*symbol, int	status, int	from, int	to, char	*dtr_list, char	*alt_list)
 {
-	if(is_token_edge(symbol))
+	int	is_token = status & 8;
+	int	is_root = status & 1;
+	int is_connected = status & 2;
+
+	if(!is_connected && !is_token)return 0;
+
+	//if(is_token_edge(symbol))
+	if(is_token)
 		return load_token_from_tsdb(P, id, symbol, from, to);
 
 	struct tb_edge	*make_edge(int	id)
@@ -443,10 +452,22 @@ int	load_edge_from_tsdb(struct parse	*P, int	id, char	*symbol, int	is_root, int	
 
 	struct tb_edge	*get_edge(int	id)
 	{
-		int i;
+		struct tb_edge	*e = hash_find(id_to_edge, (void*)&id);
+		if(!e)
+		{
+			e = make_edge(id);
+			int	*idp = malloc(sizeof(int));
+			*idp = id;
+			hash_add(id_to_edge, (void*)idp, e);
+			enqueue(&P->edges, &P->nedges, e);
+		}
+		assert(e->id == id);
+		return e;
+		/*int i;
+		// this is slow for big forests.
 		for(i=0;i<P->nedges;i++)
 			if(P->edges[i]->id == id)return P->edges[i];
-		return enqueue(&P->edges, &P->nedges, make_edge(id));
+		return enqueue(&P->edges, &P->nedges, make_edge(id));*/
 	}
 
 	void	pack_edge(struct tb_edge	*host, struct tb_edge	*pack)
@@ -607,8 +628,9 @@ int	get_decisions(struct tsdb	*profile, char	*pid, struct constraint	**Decs)
 			else assert(!"unintelligible constraint");
 			if(state==1 || state==2)c->inferred = 0;
 			else c->inferred = 1;
-			printf("RECOVERED constraint: %s [%d-%d] [%s] %s\n",
-				c->sign, c->from, c->to, c->inferred?"inferred":"manual", (c->type == constraintPresent)?"present":((c->type == constraintAbsent)?"absent":"exactly"));
+/*			printf("RECOVERED constraint: %s [%d-%d] [%s] %s\n",
+				c->sign, c->from, c->to, c->inferred?"inferred":"manual",
+				(c->type == constraintPresent)?"present":((c->type == constraintAbsent)?"absent":"exactly"));*/
 		}
 		else
 		{
@@ -625,9 +647,9 @@ struct parse	*load_forest(struct tsdb	*profile, char	*pid)
 	int pstatus = 0;
 	struct parse	*P = calloc(sizeof(*P),1);
 
-	printf("starting to load edges\n");
+	//printf("starting to load edges\n");
 	struct relation	*edges = get_relation(profile, "edge");
-	printf("get_relation returned\n");
+	//printf("get_relation returned\n");
 	if(!edges)goto noedges;
 	int	edge_parse_id = get_field(edges, "parse-id", "integer");
 	int	edge_e_id = get_field(edges, "e-id", "integer");
@@ -638,16 +660,25 @@ struct parse	*load_forest(struct tsdb	*profile, char	*pid)
 	int	edge_daughters = get_field(edges, "e-daughters", "string");
 	int	edge_alternates = get_field(edges, "e-alternates", "string");
 
+	struct hash	*id_to_edge = hash_new("id to edge");
+	id_to_edge->has_flk = sizeof(int);
+
 	void edge_visitor(char	**edge)
 	{
-		int status = load_edge_from_tsdb(P, atoi(edge[edge_e_id]),
+		int status = load_edge_from_tsdb(P, id_to_edge, atoi(edge[edge_e_id]),
 			edge[edge_name], atoi(edge[edge_status]),
 			atoi(edge[edge_start]), atoi(edge[edge_end]),
 			edge[edge_daughters], edge[edge_alternates]);
-		if(status != 0)pstatus = -1;
+		if(status != 0)
+		{
+			printf("disliked pid #%s edge #%s\n", pid, edge[edge_e_id]);
+			pstatus = -1;
+		}
 	}
 	tsdb_visit_relation_with_key(edges, edge_parse_id, pid, edge_visitor);
 	if(!is_usable_stored_parse(P))pstatus = -1;
+
+	hash_free(id_to_edge);
 
 	if(pstatus != 0)
 	{
@@ -786,14 +817,15 @@ void	web_parse(FILE	*f, char	*cgiargs)
 	//printf("BEFORE unary closure:\n");
 	//print_forest(P);
 
-	printf("about to apply UC\n");
+	//printf("about to apply UC\n");
 	struct parse	*newP = do_unary_closure(P);
-	printf("done with UC\n");
+	//printf("done with UC\n");
 	free_parse(P);
 	P = newP;
 
 	//printf("AFTER unary closure:\n");
 	//print_forest(P);
+
 	fprintf(f, "performed unary closure; now %d edges connected to %d roots.<br/>\n",
 		P->nedges, P->nroots);
 

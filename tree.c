@@ -79,6 +79,14 @@ struct tree	*string_to_tree_leaf(char	*str)
 	return t;
 }
 
+// this call accounts for most of the time spent parsing trees;
+// it visits each position in the input string once per constituent containing that position.
+// a better algorithm (if we care) would have string_to_tree1() return an updated string position,
+// so that we wouldn't need find_end_of_daughter() to be able to skip over the input consumed by recursive calls.
+// I don't know how much faster string_to_tree() would get, but I'm guessing a lot.
+// it could be a worthwhile optimization for the profile comparison tool in libtsdb...
+// really, this file should be part of some library that everyone links to
+// (along with reconstruct.[ch]), rather than having lots of copies of it floating around.
 char	*find_end_of_daughter(char	*dp)
 {
 	char	*edp = dp+1;

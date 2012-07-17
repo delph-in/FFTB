@@ -9,6 +9,7 @@
 #include	<wchar.h>
 #include	<locale.h>
 
+#include	<ace/hash.h>
 #include	"treebank.h"
 
 struct ucl
@@ -100,17 +101,17 @@ int	same_chain(struct uc	x, struct uc	y)
 	return 1;
 }
 
-struct tb_edge	*get_chain_edge(struct parse	*Pout, struct uc	**Chains, struct uc	c);
-struct tb_edge	*get_ucl_edge(struct parse	*Pout, struct uc	**Chains, struct ucl	*u)
+struct tb_edge	*get_chain_edge(struct parse	*Pout, struct hash	*chash, struct uc	**Chains, struct uc	c);
+struct tb_edge	*get_ucl_edge(struct parse	*Pout, struct hash	*chash, struct uc	**Chains, struct ucl	*u)
 {
-	struct tb_edge	*h = get_chain_edge(Pout, Chains, u->chains[0]);
+	struct tb_edge	*h = get_chain_edge(Pout, chash, Chains, u->chains[0]);
 	int i;
 	if(!h->npack)
 	{
 		// only put the rest of the chains onto the packing list once
 		for(i=1;i<u->nchains;i++)
 		{
-			struct tb_edge	*p = get_chain_edge(Pout, Chains, u->chains[i]);
+			struct tb_edge	*p = get_chain_edge(Pout, chash, Chains, u->chains[i]);
 			h->npack++;
 			h->pack = realloc(h->pack, sizeof(struct tb_edge*)*h->npack);
 			h->pack[h->npack-1] = p;
@@ -124,15 +125,31 @@ struct tb_edge	*get_ucl_edge(struct parse	*Pout, struct uc	**Chains, struct ucl	
 	return h;
 }
 
-struct tb_edge	*get_chain_edge(struct parse	*Pout, struct uc	**Chains, struct uc	c)
+struct tb_edge	*get_chain_edge(struct parse	*Pout, struct hash	*chash, struct uc	**Chains, struct uc	c)
 {
+	char	ckey[10240], *cp = ckey;
 	int i;
+	for(i=0;i<c.n;i++)cp += snprintf(cp, ckey+10239-cp, "#%d", c.e[i]->id);
+	assert(cp < ckey+10230);	// could fail in theory, but not likely in practice.
+
+	int	I = (int)(long)(void*)hash_find(chash, ckey);
+	if(I)
+	{
+		free(c.e);
+		return Pout->edges[I-1];
+	}
+
+	/*int i;
 	for(i=0;i<Pout->nedges;i++)
+	{
+		// this is slow for big forests
 		if(same_chain((*Chains)[i], c))
 		{
 			free(c.e);
 			return Pout->edges[i];
 		}
+	}*/
+
 	struct tb_edge	*e = calloc(sizeof(*e),1);
 	e->from = c.e[0]->from;
 	e->to = c.e[0]->to;
@@ -144,13 +161,17 @@ struct tb_edge	*get_chain_edge(struct parse	*Pout, struct uc	**Chains, struct uc
 	Pout->nedges++;
 	Pout->edges = realloc(Pout->edges, sizeof(struct tb_edge*)*Pout->nedges);
 	Pout->edges[Pout->nedges-1] = e;
-	(*Chains) = realloc((*Chains), sizeof(struct uc)*Pout->nedges);
-	(*Chains)[Pout->nedges-1] = c;
+
+	hash_add(chash, strdup(ckey), (void*)(long)(Pout->nedges));
+	//(*Chains) = realloc((*Chains), sizeof(struct uc)*Pout->nedges);
+	//(*Chains)[Pout->nedges-1] = c;
+
 	for(i=0;i<e->ndaughters;i++)
 	{
 		struct ucl	*u = unary_closure(c.e[c.n-1]->daughter[i]);
-		e->daughter[i] = get_ucl_edge(Pout, Chains, u);
+		e->daughter[i] = get_ucl_edge(Pout, chash, Chains, u);
 	}
+	free(c.e);
 	return e;
 }
 
@@ -196,17 +217,25 @@ struct parse	*do_unary_closure(struct parse	*Pin)
 		Pout->tokens[i]->cto = Pin->tokens[i]->cto;
 	}
 	struct uc	*chains = NULL;
+	struct hash	*chash = hash_new("chain hash");
 	for(i=0;i<Pin->nroots;i++)
 	{
 		struct ucl	*u = unary_closure(Pin->roots[i]);
-		struct tb_edge	*e = get_ucl_edge(Pout, &chains, u);
+		struct tb_edge	*e = get_ucl_edge(Pout, chash, &chains, u);
 		e->is_root = 1;
 		Pout->nroots++;
 		Pout->roots = realloc(Pout->roots, sizeof(struct tb_edge*)*Pout->nroots);
 		Pout->roots[Pout->nroots-1] = e;
 	}
+	hash_free(chash);
 	for(i=0;i<Pout->nedges;i++)
-		free(chains[i].e);
+	{
+		/*printf("uc edge #%d has chain: ", Pout->edges[i]->id);
+		int j;
+		for(j=0;j<chains[i].n;j++)printf(" %d", chains[i].e[j]->id);
+		printf("\n");*/
+		//free(chains[i].e);
+	}
 	for(i=0;i<Pout->nroots;i++)
 	{
 		struct tb_edge	*e = Pout->roots[i];

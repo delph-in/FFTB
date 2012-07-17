@@ -16,6 +16,9 @@ things that *must* be done before any kind of release:
 strange bug:
 	ws01 item 10030770 has 2 remaining trees (with all gold on), but no discriminants -- and all the lexemes are unambiguous.
 		in that same item, and also in 10030700, there is another UI glitch where hyphenated words are being displayed incorrectly
+	trec item 642 has 2 remaining trees but no discriminants
+		- "at" can be at_date_p or at_temp -- two lexemes with different COMPKEYs but identical lexical types and identical predications
+	ws01 item 10011280 claims 3 remaining trees, but two of them don't reconstruct
 
 things that would be *nice*:
 	various UI enhancements

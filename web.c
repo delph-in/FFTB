@@ -18,11 +18,11 @@
 #include	"tree.h"
 #include	"treebank.h"
 
-//#define	ERG_PATH	"/home/sweaglesw/cdev/ace/erg-1010.dat"
-#define	ERG_PATH	"/home/sweaglesw/answer/ace/erg.dat"
+#define	ERG_PATH	"/home/sweaglesw/cdev/ace/erg-1010.dat"
+//#define	ERG_PATH	"/home/sweaglesw/answer/ace/erg.dat"
 
-//char	*tsdb_home_path = "/home/sweaglesw/logon/lingo/lkb/src/tsdb/home/";
-char	*tsdb_home_path = "/home/sweaglesw/answer/treebank/demo-profiles/";
+char	*tsdb_home_path = "/home/sweaglesw/logon/lingo/lkb/src/tsdb/home/";
+//char	*tsdb_home_path = "/home/sweaglesw/answer/treebank/demo-profiles/";
 
 void	html_headers(FILE	*f, char	*title)
 {
@@ -208,25 +208,53 @@ int eq_tree(struct tree	*x, struct tree	*y)
 	return 1;
 }
 
+int	get_decis_timer = -1;
+int	get_tree_timer = -1;
+int	get_forest_timer = -1;
+int	unary_closure_timer = -1;
+int	count_timer = -1;
+
 long long	update_item(struct tsdb	*gold, struct tsdb	*prof, char	*iid, char	**color)
 {
+	int result = 0;
 	// plan:
 	//   read the gold decisions from 'gold'
 	//   read the forest from 'prof'
 	//   apply those decisions and see how many results are left
 	//   if there's a unique result, record it.
 
+	if(get_decis_timer == -1)
+	{
+		get_decis_timer = new_timer("get decisions");
+		get_tree_timer = new_timer("load gold tree");
+		get_forest_timer = new_timer("load forest");
+		unary_closure_timer = new_timer("unary closure");
+		count_timer = new_timer("count solutions");
+	}
+
+	start_timer(get_decis_timer);
+
 	char	*gold_pid = get_pid_by_id(gold, iid);
 	char	*prof_pid = get_pid_by_id(prof, iid);
 	assert(prof_pid);
 
-	printf("updating %s ; gold pid %s, prof pid %s\n", iid, gold_pid, prof_pid);
+	printf("[%s]	", iid); fflush(stdout);
 
 	struct constraint	*golddecs = NULL;
 	int ngolddecs = gold_pid ? get_decisions(gold, gold_pid, &golddecs) : 0;
-	if(ngolddecs < 0) { fprintf(stderr, "unable to get gold decisions for %s\n", iid); return -1; }
 
-	printf("loaded %d gold decisions\n", ngolddecs);
+	stop_timer(get_decis_timer, ngolddecs>=0?ngolddecs:0);
+
+	if(ngolddecs < 0)
+	{
+		fprintf(stderr, "unable to get gold decisions for %s\n", iid);
+		result = -1;
+		goto freeup2;
+	}
+
+	printf("{%d decisions}	", ngolddecs); fflush(stdout);
+
+	start_timer(get_tree_timer);
 
 	struct tree	*goldpref_tree = NULL;
 	if(gold_pid)
@@ -244,39 +272,68 @@ long long	update_item(struct tsdb	*gold, struct tsdb	*prof, char	*iid, char	**co
 		}
 	}
 
+	stop_timer(get_tree_timer, goldpref_tree?1:0);
+	start_timer(get_forest_timer);
+
 	struct parse	*P = load_forest(prof, prof_pid);
-	if(!P) { fprintf(stderr, "unable to get parse forest for %s\n", iid); return -1; }
+	stop_timer(get_forest_timer, 1);
+
+	if(!P)
+	{
+		fprintf(stderr, "unable to get parse forest for %s\n", iid);
+		result = -1;
+		goto freeup1;
+	}
+
+	start_timer(unary_closure_timer);
 	struct parse	*newP = do_unary_closure(P);
 	free_parse(P);
+	stop_timer(unary_closure_timer, 1);
 	P = newP;
-	if(!P) { fprintf(stderr, "unable to perform unary closure for %s\n", iid); return -1; }
+	if(!P)
+	{
+		fprintf(stderr, "unable to perform unary closure for %s\n", iid);
+		result = -1;
+		goto freeup1;
+	}
 
-	printf("loaded parse forest with %d edges (%d roots)\n", P->nedges, P->nroots);
+	//printf("loaded parse forest with %d edges (%d roots)\n", P->nedges, P->nroots);
+	printf("{%d edges}	", P->nedges); fflush(stdout);
 
-	long long	remaining = count_remaining_trees(P, NULL, 0);
+	start_timer(count_timer);
+	long long	total = count_remaining_trees(P, NULL, 0);
+	stop_timer(count_timer, 1);
 	if(!goldpref_tree)
 	{
-		fprintf(stderr, "no gold parse for %s ; %lld current parses\n", iid, remaining);
-		if(remaining == 0)*color = "#aaa";
-		else if(remaining == 1)*color = "lightblue";
+		//fprintf(stderr, "no gold parse for %s ; %lld current parses\n", iid, total);
+		if(total == 0)*color = "#aaa";
+		else if(total == 1)*color = "lightblue";
 		else *color = "#ff8";
-		return 0;
+		printf("{%lld trees} no gold	", total); fflush(stdout);
+		result = 0;
+		goto freeup;
 	}
 
-	if(!remaining)
+	if(!total)
 	{
 		*color = "#a44";
-		fprintf(stderr, "no new parses\n");
-		return 0;
+		printf("{0 trees}	"); fflush(stdout);
+		//fprintf(stderr, "no new parses\n");
+		result = 0;
+		goto freeup;
 	}
 
-	remaining = count_remaining_trees(P, golddecs, ngolddecs);
-	printf("under gold decisions, %lld possible tree(s)\n", remaining);
+	start_timer(count_timer);
+	long long remaining = count_remaining_trees(P, golddecs, ngolddecs);
+	stop_timer(count_timer, 1);
+	printf("{%lld / %lld trees active}	", remaining, total); fflush(stdout);
+	//printf("under gold decisions, %lld possible tree(s)\n", remaining);
 	if(remaining == 0)
 	{
 		*color = "#f88";
-		fprintf(stderr, "all new parses ruled out\n");
-		return 0;
+		//fprintf(stderr, "all new parses ruled out\n");
+		result = 0;
+		goto freeup;
 		/*if(1 == tree_satisfies_constraints(goldpref_tree, golddecs, ngolddecs))
 			printf(" ... but I agree that the gold stored tree satisfies\n");
 		int i;
@@ -291,10 +348,11 @@ long long	update_item(struct tsdb	*gold, struct tsdb	*prof, char	*iid, char	**co
 	if(remaining > 1)
 	{
 		*color = "#c94";
-		return remaining;	// failed to identify exactly 1 tree
+		result = remaining;	// failed to identify exactly 1 tree
+		goto freeup;
 	}
 
-	printf(" that means a unique tree.\n");
+	//printf(" that means a unique tree.\n");
 	int i;
 	for(i=0;i<P->nedges;i++)
 		if(P->edges[i]->unpackings == 1 && P->edges[i]->solutions == 1 && P->edges[i]->is_root)break;
@@ -303,22 +361,35 @@ long long	update_item(struct tsdb	*gold, struct tsdb	*prof, char	*iid, char	**co
 	if(!t)
 	{
 		*color = "purple";
-		printf(" couldn't extract the tree... not sure whether it's gold.\n");
-		return 1;
+		printf("couldn't extract the tree... not sure whether it's gold.\n");
+		result = 1;
+		goto freeup;
 	}
 
 	if(eq_tree(t, goldpref_tree))
 	{
 		*color = "green";
-		printf(" ... and it is equivalent to the stored gold tree\n");
+		printf("identical	"); fflush(stdout);
+		//printf(" ... and it is equivalent to the stored gold tree\n");
 	}
 	else
 	{
 		*color = "lightblue";
-		printf(" ... and it's not equivalent to the stored gold tree\n");
+		printf("different	"); fflush(stdout);
+		//printf(" ... and it's not equivalent to the stored gold tree\n");
 	}
+	free_tree(t);
+	result = 1;
 
-	return 1;
+freeup:
+	if(P)free_parse(P);
+freeup1:
+	if(goldpref_tree)free_tree(goldpref_tree);
+	for(i=0;i<ngolddecs;i++)
+		free(golddecs[i].sign);
+	if(golddecs)free(golddecs);
+freeup2:
+	return result;
 }
 
 void	web_update(FILE	*f, char	*path)
@@ -423,6 +494,7 @@ void	web_update(FILE	*f, char	*path)
 			else
 			{
 				long long status = update_item(goldprof, profile, iid, &color);
+				printf("\n");
 				/*if(status == 1)color = "green";
 				else if(status == 0)color = "#f88";
 				else if(status < 0)color = "red";
@@ -508,6 +580,7 @@ main(int	argc, char	*argv[])
 	signal(SIGINT, quit_server_event_loop);
 	signal(SIGPIPE, pipe_handler);
 	ace_load_grammar(grammar_ace_image_path);
-	//daemonize("web.log");
+	daemonize("web.log");
 	server_event_loop();
+	report_timers();
 }

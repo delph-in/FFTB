@@ -183,7 +183,7 @@ void	count_solutions_r2(struct tb_edge	*e)
 
 long long	count_remaining_trees(struct parse	*P, struct constraint	*c, int	nc)
 {
-	printf("counting with %d constraints\n", nc);
+	//printf("counting with %d constraints\n", nc);
 	int i;
 	long long n = 0;
 	for(i=0;i<P->nedges;i++)
@@ -195,7 +195,13 @@ long long	count_remaining_trees(struct parse	*P, struct constraint	*c, int	nc)
 		P->edges[i]->solutions = -1;
 	for(i=0;i<P->nedges;i++)
 		count_solutions_r2(P->edges[i]);
-	printf("done recounting solutions\n");
+
+	/*for(i=0;i<P->nedges;i++)
+	{
+		printf("edge #%d ... %lld unpackings and %lld solutions\n", P->edges[i]->id, P->edges[i]->unpackings, P->edges[i]->solutions);
+	}*/
+
+	//printf("done recounting solutions\n");
 	return n;
 }
 
