@@ -609,7 +609,8 @@ function render_decision(dec, nixertype)
 	var d = document.createElement("tr");
 
 	var tdsign = document.createElement("td");
-	tdsign.appendChild(document.createTextNode(dec.sign.toLowerCase()));
+	var wrapable = dec.sign.replace(/@/g, " @");
+	tdsign.appendChild(document.createTextNode(wrapable.toLowerCase()));
 	tdsign.style.paddingRight = "10px";
 	d.appendChild(tdsign);
 

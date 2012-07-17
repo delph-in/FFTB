@@ -139,6 +139,11 @@ FILE	*invoke_ace(char	*input)
 char	*sign_with_lexnames_to_sign_with_lextypes(char	*swln)
 {
 	struct lexeme	*lex = get_lex_by_name_hash(swln);
+	if(!lex)
+	{
+		fprintf(stderr, "lexeme '%s' does not appear to be present in the loaded grammar\n", swln);
+		return NULL;
+	}
 	assert(lex != NULL);
 	return strdup(lex->lextype->name);
 }
@@ -292,7 +297,11 @@ struct parse	*read_forest_from_ace(FILE	*p, wchar_t	*winput)
 			assert(*lp==')');
 			if(e->ndaughters)
 				e->sign = strdup(e->sign_with_lexnames);
-			else e->sign = sign_with_lexnames_to_sign_with_lextypes(e->sign_with_lexnames);
+			else
+			{
+				e->sign = sign_with_lexnames_to_sign_with_lextypes(e->sign_with_lexnames);
+				if(!e->sign) { pclose(p); return NULL; }
+			}
 		}
 	}
 	pclose(p);
@@ -483,7 +492,10 @@ int	load_edge_from_tsdb(struct parse	*P, int	id, char	*symbol, int	is_root, int	
 	free(alt_list);
 
 	if(e->ndaughters == 0)
+	{
 		e->sign = sign_with_lexnames_to_sign_with_lextypes(e->sign_with_lexnames);
+		if(!e->sign) { return -1; }
+	}
 	else e->sign = strdup(e->sign_with_lexnames);
 
 	//printf("to load: edge #%d symbol '%s' root %d from %d to %d daughters %s alternates %s\n", id, symbol, is_root, from, to, dtr_list, alt_list);
@@ -747,6 +759,7 @@ void	web_parse(FILE	*f, char	*cgiargs)
 	if(P)
 	{
 		printf("-> loaded stored forest\n");
+		printf("found stored forest (%d edges connected to %d roots).<br/>\n", P->nedges, P->nroots);
 		html_headers(f, "ACE Treebanker");
 		fprintf(f, "found stored forest (%d edges connected to %d roots).<br/>\n", P->nedges, P->nroots);
 	}

@@ -18,9 +18,11 @@
 #include	"tree.h"
 #include	"treebank.h"
 
-#define	ERG_PATH	"/home/sweaglesw/cdev/ace/erg-1010.dat"
+//#define	ERG_PATH	"/home/sweaglesw/cdev/ace/erg-1010.dat"
+#define	ERG_PATH	"/home/sweaglesw/answer/ace/erg.dat"
 
-char	*tsdb_home_path = "/home/sweaglesw/logon/lingo/lkb/src/tsdb/home/";
+//char	*tsdb_home_path = "/home/sweaglesw/logon/lingo/lkb/src/tsdb/home/";
+char	*tsdb_home_path = "/home/sweaglesw/answer/treebank/demo-profiles/";
 
 void	html_headers(FILE	*f, char	*title)
 {
@@ -185,7 +187,28 @@ void	web_slash(FILE	*f, char	*path)
 	}
 }
 
-long long	update_item(struct tsdb	*gold, struct tsdb	*prof, char	*iid)
+int eq_tree(struct tree	*x, struct tree	*y)
+{
+	if(! (x->tfrom == y->tfrom && x->tto == y->tto))
+		return 0;	// need the same span
+//	if(x->label[0]=='"' && y->label[0]=='"')
+//		return 1;	// engines may output labels differently for leaf nodes; identical token span is enough.
+	if(!x->ndaughters)return 1;
+
+	if(strcmp(x->label, y->label))
+	{
+		//printf("%s != %s\n", x->label, y->label);
+		return 0;
+	}
+	if(x->ndaughters != y->ndaughters)return 0;
+	int	i;
+	for(i=0;i<x->ndaughters;i++)
+		if(!eq_tree(x->daughters[i], y->daughters[i]))
+			return 0;
+	return 1;
+}
+
+long long	update_item(struct tsdb	*gold, struct tsdb	*prof, char	*iid, char	**color)
 {
 	// plan:
 	//   read the gold decisions from 'gold'
@@ -195,27 +218,29 @@ long long	update_item(struct tsdb	*gold, struct tsdb	*prof, char	*iid)
 
 	char	*gold_pid = get_pid_by_id(gold, iid);
 	char	*prof_pid = get_pid_by_id(prof, iid);
-	if(!gold_pid) { fprintf(stderr, "no gold parse for %s\n", iid); return -1; }
 	assert(prof_pid);
 
 	printf("updating %s ; gold pid %s, prof pid %s\n", iid, gold_pid, prof_pid);
 
 	struct constraint	*golddecs = NULL;
-	int ngolddecs = get_decisions(gold, gold_pid, &golddecs);
+	int ngolddecs = gold_pid ? get_decisions(gold, gold_pid, &golddecs) : 0;
 	if(ngolddecs < 0) { fprintf(stderr, "unable to get gold decisions for %s\n", iid); return -1; }
 
 	printf("loaded %d gold decisions\n", ngolddecs);
 
-	char	*gold_pref = get_pref_rid(gold, gold_pid);
 	struct tree	*goldpref_tree = NULL;
-	if(gold_pref)
+	if(gold_pid)
 	{
-		char	*deriv = get_result(gold, gold_pid, gold_pref);
-		if(deriv)
+		char	*gold_pref = get_pref_rid(gold, gold_pid);
+		if(gold_pref)
 		{
-			char	*copy = strdup(deriv);
-			goldpref_tree = string_to_tree(copy);
-			free(copy);
+			char	*deriv = get_result(gold, gold_pid, gold_pref);
+			if(deriv)
+			{
+				char	*copy = strdup(deriv);
+				goldpref_tree = string_to_tree(copy);
+				free(copy);
+			}
 		}
 	}
 
@@ -228,11 +253,31 @@ long long	update_item(struct tsdb	*gold, struct tsdb	*prof, char	*iid)
 
 	printf("loaded parse forest with %d edges (%d roots)\n", P->nedges, P->nroots);
 
-	long long	remaining = count_remaining_trees(P, golddecs, ngolddecs);
-	printf("under gold decisions, %lld possible tree(s)\n", remaining);
-	if(remaining == 0 && goldpref_tree)
+	long long	remaining = count_remaining_trees(P, NULL, 0);
+	if(!goldpref_tree)
 	{
-		if(1 == tree_satisfies_constraints(goldpref_tree, golddecs, ngolddecs))
+		fprintf(stderr, "no gold parse for %s ; %lld current parses\n", iid, remaining);
+		if(remaining == 0)*color = "#aaa";
+		else if(remaining == 1)*color = "lightblue";
+		else *color = "#ff8";
+		return 0;
+	}
+
+	if(!remaining)
+	{
+		*color = "#a44";
+		fprintf(stderr, "no new parses\n");
+		return 0;
+	}
+
+	remaining = count_remaining_trees(P, golddecs, ngolddecs);
+	printf("under gold decisions, %lld possible tree(s)\n", remaining);
+	if(remaining == 0)
+	{
+		*color = "#f88";
+		fprintf(stderr, "all new parses ruled out\n");
+		return 0;
+		/*if(1 == tree_satisfies_constraints(goldpref_tree, golddecs, ngolddecs))
 			printf(" ... but I agree that the gold stored tree satisfies\n");
 		int i;
 		print_forest(P);printf("...\n\n\n");
@@ -241,10 +286,13 @@ long long	update_item(struct tsdb	*gold, struct tsdb	*prof, char	*iid)
 			struct tb_edge	*e = P->edges[i];
 			printf("edge #%d (root=%d):  %lld unpackings, %lld solutions\n",
 				e->id, e->is_root, e->unpackings, e->solutions);
-		}
+		}*/
 	}
-	if(remaining > 1 || remaining == 0)
+	if(remaining > 1)
+	{
+		*color = "#c94";
 		return remaining;	// failed to identify exactly 1 tree
+	}
 
 	printf(" that means a unique tree.\n");
 	int i;
@@ -252,8 +300,24 @@ long long	update_item(struct tsdb	*gold, struct tsdb	*prof, char	*iid)
 		if(P->edges[i]->unpackings == 1 && P->edges[i]->solutions == 1 && P->edges[i]->is_root)break;
 	assert(i < P->nedges);
 	struct tree	*t = extract_tree(P->edges[i], 0);
+	if(!t)
+	{
+		*color = "purple";
+		printf(" couldn't extract the tree... not sure whether it's gold.\n");
+		return 1;
+	}
 
-	printf("extracted the tree: %p\n", t);
+	if(eq_tree(t, goldpref_tree))
+	{
+		*color = "green";
+		printf(" ... and it is equivalent to the stored gold tree\n");
+	}
+	else
+	{
+		*color = "lightblue";
+		printf(" ... and it's not equivalent to the stored gold tree\n");
+	}
+
 	return 1;
 }
 
@@ -305,26 +369,64 @@ void	web_update(FILE	*f, char	*path)
 	html_headers(f, title);
 	char	*cgi = cgiencode(path);
 
+	// new profile cases:
+	//		parsing failed
+	//		no parses found
+	//		no parses remain
+	//		exactly one tree remains
+	//		multiple trees remain
+
+	// gold profile cases are the same
+	// ... so 5x5 = 25 possible conditions.
+
+/*
+	if we already have a preference stored for this item, light green
+	 if (new) parsing failed, we just want to indicate that, regardless of what happened before.
+	 		bright red.
+	 if no parses were found
+			if gold profile had no active trees, use a light gray color
+			otherwise, indicate a regression with a brownish-reddish color
+	 if no parses remain (after applying update) but there were some to begin with
+			flag the situation with a light-red color
+	 if exactly one tree remains
+			if gold profile had 1 active tree and this is it, use bright green
+			otherwise use a cautiously optimistic color like light blue
+	 if multiple trees remain
+			if gold profile had 1 active tree, indicate a regression with an orangish color
+			otherwise indicate an unsurprising incomplete disambiguation with a yellowish color
+*/
+
+	fprintf(f, "<span style='background: lightgreen;'>This profile has an active tree, not updating</span>\n");
+	fprintf(f, "<span style='background: red;'>Unexpected error</span>\n");
+	fprintf(f, "<span style='background: #aaa;'>No parses now, no active gold exists</span>\n");
+	fprintf(f, "<span style='background: #a44;'>No parses now, active gold exists</span>\n");
+	fprintf(f, "<span style='background: #f88;'>Overconstrained now, active gold exists</span>\n");
+	fprintf(f, "<span style='background: green;'>Fully disambiguated, identical to stored gold tree</span>\n");
+	fprintf(f, "<span style='background: lightblue;'>Fully disambiguated, different from stored gold tree</span>\n");
+	fprintf(f, "<span style='background: #c94;'>Remaining ambiguity, was resolved in gold</span>\n");
+	fprintf(f, "<span style='background: #ff8;'>Remaining ambiguity, was unresolved in gold</span>\n");
+	fprintf(f, "<hr />\n");
+
 	fprintf(f, "<table>\n");
 	for(i=0;i<items->ntuples;i++)
 	{
 		char	*iid = items->tuples[i][item_id];
 		char	*input = items->tuples[i][item_input];
 		char	*parse_id = get_pid_by_id(profile, iid);
-		char	*color = "black";
+		char	*color = "red";
 		if(!parse_id)
-			color = "lightgray";
+			color = "red";
 		else
 		{
 			char	*pref = get_pref_rid(profile, parse_id);
 			if(pref)color = "#8f8";
 			else
 			{
-				long long status = update_item(goldprof, profile, iid);
-				if(status == 1)color = "green";
+				long long status = update_item(goldprof, profile, iid, &color);
+				/*if(status == 1)color = "green";
 				else if(status == 0)color = "#f88";
 				else if(status < 0)color = "red";
-				else color = "#ff8";
+				else color = "#ff8";*/
 			}
 		}
 		fprintf(f, "<tr style='background: %s;'><td><a href=\"/private/parse?profile=%s&id=%s\">%s</a></td>\n", color, cgi, iid, iid);
@@ -406,6 +508,6 @@ main(int	argc, char	*argv[])
 	signal(SIGINT, quit_server_event_loop);
 	signal(SIGPIPE, pipe_handler);
 	ace_load_grammar(grammar_ace_image_path);
-	daemonize("web.log");
+	//daemonize("web.log");
 	server_event_loop();
 }

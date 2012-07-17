@@ -201,27 +201,6 @@ long long	count_remaining_trees(struct parse	*P, struct constraint	*c, int	nc)
 
 // system to check whether a stored gold tree matches our constraints
 
-/*  this is now supplied by reconstruct.c
-struct lexeme	*get_lex_by_name_hash(char	*name)
-{
-	static struct hash	*h = NULL;
-	if(!h)h = hash_new("lexicon");
-
-	struct lexeme	*l = hash_find(h, name);
-	if(l)return l;
-
-	l = get_lex_by_name(name);
-	if(l) { hash_add(h, strdup(name), l); return l; }
-
-	int i;
-	for(i=0;i<ngeneric_les;i++)
-		if(!strcmp(name, generic_les[i]->word))
-			{ hash_add(h, strdup(name), generic_les[i]); return generic_les[i]; }
-
-	fprintf(stderr, "unknown lexeme '%s'!\n", name);
-	return NULL;
-}*/
-
 int	tree_satisfies_constraints(struct tree	*t, struct constraint	*c, int	nc)
 {
 	int	i;
@@ -236,6 +215,11 @@ int	tree_satisfies_constraints(struct tree	*t, struct constraint	*c, int	nc)
 		{
 			// 't' is a lexeme
 			struct lexeme	*lex = get_lex_by_name_hash(t->label);
+			if(!lex)
+			{
+				printf("gold tree had lexeme '%s' which doesn't exist\n", t->label);
+				return 0;
+			}
 			assert(lex);
 			char	*lt = lex->lextype->name;
 			strcat(uc_label, lt);
