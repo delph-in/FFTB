@@ -2,16 +2,8 @@ things that *must* be done before any kind of release:
 	[ ]   UI to select a gold profile for an update operation
 	[ ]   verify that there is at least one *real* (reconstructable) tree left at each step, or *minimally* before saving
 		-- actually, that could be expensive... if there is no reconstructable tree subject to the constraints, we have to rule out *every* remaining tree somehow or another.  we expect this to be rare except when there are very few trees left, so *usually* we should be fine... but it seems scary to try to offer a guarantee when it could take arbitrarily long to prove.
-	[ ]   save decisions; preferably in real-time as they are made, so you can return to your session from another browser or after the server is reset
-		-- tsdb does not have to be the native result store, but it could be; and we MUST support saving to tsdb somehow
-		-- how do we compute inferred discriminants to save?
-		basic design:
-			1. make a new profile and parse it, storing the forest somewhere
-			2. pick a source gold profile and commence an "update" procedure relative to that profile (can be null)
-			3. any decisions from the gold profile are available/default-on in the new profile
-			4. new decisions made and old decisions accepted get saved to the decisions file in the new profile
-			5. navigation: skip condition is something like:
-				"there are multiple analyses, and the stored discriminants identified a set of cardinality exactly 1"
+		+ we do it before saving, at least.
+	[x]   save decisions; preferably in real-time as they are made, so you can return to your session from another browser or after the server is reset
 
 strange bug:
 	ws01 item 10030770 has 2 remaining trees (with all gold on), but no discriminants -- and all the lexemes are unambiguous.
@@ -27,58 +19,16 @@ things that would be *nice*:
 	[ ] a way to see an example [sub]tree before picking a discriminant
 		-- also perhaps an easy way to pull up the documentation for various rules/types
 	[ ] overlay/display of other annotation types (ILG, PTB)
+	[ ] write the labeled tree of the prefered unpacking to 'result'
 
 improvements for special use cases:
 	- display various types of prior annotations:
 		- Emily would like to be able to view Inter-Linear Glosses along with the sentence being treebanked
 		- Stephan would like to be able to view an alternate tree (e.g. PTB) for the same sentence
 
-recording decisions and preferences?
-	- first step: read existing preferences file
-		- online display of whether preferred tree is currently in or out
-	- then: read existing decisions file
-		- mode/button to apply existing decisions and see how far that goes towards disambiguating
-		- 'decisions' file format:
-			d-state
-				1 = explicitly require this labeling
-				2 = explicitly ban this labeling
-				3 = implicitly require this labeling
-				4 = implicitly ban this labeling
-					... itsdb code that generates it:
-						1: 'toggle' == t
-						2: 'toggle' == null
-						3: 'toggle' is neither and 'state' is t
-						4; 'toggle' is neither and 'state' is null
-				... we may as well only look at types 1 and 2 for now.
-			d-type
-				2 = type	(apparently the lexical type of a lexeme)
-				3 = constituent	(apparently a rule dominating that constituent)
-			d-key
-				symbolic label for the span... tends to be all caps :-/
-			d-value
-				sentence text with a || showing constituent break
-			d-start and  d-end
-				appear to match our token-based start/end positions
-	- then: button to write a new decisions/preferences file pair
-
-recording forest in tsdb profile
-	- modify ace forest output to include all tokens, and their FSes, and assign them sensible IDs, and refer to those IDs in lexeme dtr lists (perhaps negative IDs?)
-	- new 'forest' relation, presumably
-		parse-id
-		edge-id
-		type	normal edge, root-capable edge, token
-		symbol	rule name, lexeme name, or token feature-structure
-		tfrom	parse chart vertex ID
-		tto		parse chart vertex ID
-		cfrom	i-input unicode character offset
-		cto		i-input unicode character offset
-		pack	list of edge-ids
-		dtrs	list of edge-ids
-	- preprocessing step to build the 'forest' file
-	- store it with regular edges, then do the unary closure online when loading a sentence -- check and be sure that won't be too slow? probably ok.
-
 
 done:
+	+ when saving, write 'decision', 'preference', 'tree' and 'result', including the derivation tree and the mrs of the preferred result
 	+ keep a cache of TSDB profiles; much faster than loading everytime we change sentences
 	+ apply gold inferred discriminants in addition to gold manual discriminants
 	+ pre-parse sentences and store their forests, to avoid having to spend time parsing while user is on-line
