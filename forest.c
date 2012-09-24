@@ -14,6 +14,7 @@
 
 #include	<ace/lexicon.h>
 #include	<ace/hash.h>
+#include	<ace/unicode.h>
 
 #include	"tree.h"
 #include	"treebank.h"
@@ -149,6 +150,11 @@ char	*sign_with_lexnames_to_sign_with_lextypes(char	*swln)
 	return strdup(lex->lextype->name);
 }
 
+/*
+// this function is mildly out of date;
+// the ACE forest output format now writes tokens as:
+// token <id> <from> <to> <unquoted AVM of the token>
+// and also references token IDs as lexeme daughters
 struct parse	*read_forest_from_ace(FILE	*p, wchar_t	*winput)
 {
 	struct parse	*P = calloc(sizeof(*P),1);
@@ -213,13 +219,14 @@ struct parse	*read_forest_from_ace(FILE	*p, wchar_t	*winput)
 		else if(5 == sscanf(line, "token %d %d %d %d %l[^\n]\n", &from, &to, &cfrom, &cto, text))
 		{
 			P->ntokens++;
-			P->tokens = realloc(P->tokens, sizeof(struct token*)*P->ntokens);
-			struct token	*t = calloc(sizeof(*t),1);
+			P->tokens = realloc(P->tokens, sizeof(struct tb_token*)*P->ntokens);
+			struct tb_token	*t = calloc(sizeof(*t),1);
 			P->tokens[P->ntokens-1] = t;
 			t->from = from;
 			t->to = to;
 			t->cfrom = cfrom;
 			t->cto = cto;
+			t->avmstr = strdup(avm_string);
 			t->text = wcsdup(text);//calloc(sizeof(wchar_t),cto-cfrom + 1);
 			//memcpy(t->text, winput + cfrom, sizeof(wchar_t)*(cto-cfrom));
 			//printf("token %d-%d [%d-%d] = '%S'\n",
@@ -309,14 +316,15 @@ struct parse	*read_forest_from_ace(FILE	*p, wchar_t	*winput)
 	
 	return P;
 }
+*/
 
-wchar_t	*towide(char	*mbs)
+/*wchar_t	*towide(char	*mbs)
 {
 	wchar_t	*w = malloc((strlen(mbs)+2) * sizeof(wchar_t));
 	size_t	err = mbstowcs(w, mbs, strlen(mbs)+1);
 	//printf("towide of '%s' = '%S'  ; err = %zd\n", mbs, w, err);
 	return w;
-}
+}*/
 
 void	print_forest(struct parse	*P)
 {
@@ -366,8 +374,9 @@ void	free_parse(struct parse	*P)
 	free(P->edges);
 	for(i=0;i<P->ntokens;i++)
 	{
-		struct token	*t = P->tokens[i];
+		struct tb_token	*t = P->tokens[i];
 		free(t->text);
+		free(t->avmstr);
 		free(t);
 	}
 	free(P->tokens);
@@ -386,22 +395,37 @@ wchar_t	*quoted_to_wcs(char	*qmbs)
 	return towide(qmbs);
 }
 
+#define	TOKEN_EDGE_TYPE		0
+#define	LEXEME_EDGE_TYPE	1
+#define	LEXRULE_EDGE_TYPE	2
+#define	SYNRULE_EDGE_TYPE	3
+#define	ROOT_EDGE_TYPE		4
+
+#define	RESULT_EDGE_STATUS	1
+#define	ACTIVE_EDGE_STATUS	2
+#define	PACKED_EDGE_STATUS	4
+#define	FROSTED_EDGE_STATUS	8
+#define	FROZEN_EDGE_STATUS	16
+
 int	load_token_from_tsdb(struct parse	*P, int	id, char	*structure, int	from, int	to)
 {
-	int	idx = (-id)-1;
+	/*int	idx = (-id)-1;
 	if(idx >= P->ntokens)
 	{
 		int	oldn = P->ntokens, i;
 		P->ntokens = idx+1;
-		P->tokens = realloc(P->tokens, sizeof(struct token*)*P->ntokens);
+		P->tokens = realloc(P->tokens, sizeof(struct tb_token*)*P->ntokens);
 		for(i=oldn;i<P->ntokens;i++)
 			P->tokens[i] = NULL;
-	}
-	struct token	*t = calloc(sizeof(*t),1);
-	P->tokens[idx] = t;
+	}*/
+	struct tb_token	*t = calloc(sizeof(*t),1);
+	P->tokens = realloc(P->tokens, sizeof(struct tb_token*)*(P->ntokens+1));
+	P->tokens[P->ntokens++] = t;
 
+	t->id = id;
 	t->from = from;
 	t->to = to;
+	t->avmstr = strdup(structure);
 
 	char	*cfromstr = tokstr_parse_value_of_as_string(structure, "+FROM ");
 	char	*ctostr = tokstr_parse_value_of_as_string(structure, "+TO ");
@@ -424,15 +448,14 @@ int	load_token_from_tsdb(struct parse	*P, int	id, char	*structure, int	from, int
 	return 0;
 }*/
 
-int	load_edge_from_tsdb(struct parse	*P, struct hash	*id_to_edge, int	id, char	*symbol, int	status, int	from, int	to, char	*dtr_list, char	*alt_list)
+int	load_edge_from_tsdb(struct parse	*P, struct hash	*id_to_edge, int	id, char	*symbol, int	type, int	status, int	from, int	to, char	*dtr_list, char	*alt_list)
 {
-	int	is_token = status & 8;
-	int	is_root = status & 1;
-	int is_connected = status & 2;
+	int	is_token = (type==TOKEN_EDGE_TYPE);//status & 8;
+	int	is_root = (type==ROOT_EDGE_TYPE);//status & 1;
+	int is_connected = (status & RESULT_EDGE_STATUS);
 
 	if(!is_connected && !is_token)return 0;
 
-	//if(is_token_edge(symbol))
 	if(is_token)
 		return load_token_from_tsdb(P, id, symbol, from, to);
 
@@ -463,16 +486,19 @@ int	load_edge_from_tsdb(struct parse	*P, struct hash	*id_to_edge, int	id, char	*
 		}
 		assert(e->id == id);
 		return e;
-		/*int i;
-		// this is slow for big forests.
-		for(i=0;i<P->nedges;i++)
-			if(P->edges[i]->id == id)return P->edges[i];
-		return enqueue(&P->edges, &P->nedges, make_edge(id));*/
+	}
+
+	if(is_root)
+	{
+		int	did;
+		if(1 != sscanf(dtr_list, "(%d)", &did))return -1;
+		struct tb_edge	*e = get_edge(did);
+		e->is_root = 1;
+		return 0;
 	}
 
 	void	pack_edge(struct tb_edge	*host, struct tb_edge	*pack)
 	{
-		if(host->is_root)pack->is_root = 1;
 		pack->host = host;
 		enqueue(&host->pack, &host->npack, pack);
 	}
@@ -488,7 +514,6 @@ int	load_edge_from_tsdb(struct parse	*P, struct hash	*id_to_edge, int	id, char	*
 	struct tb_edge	*e = get_edge(id);
 	e->from = from;
 	e->to = to;
-	e->is_root = is_root;
 	e->sign_with_lexnames = strdup(symbol);
 	// ->parents[] gets populated when we do the unary closure; don't bother now.
 
@@ -497,7 +522,6 @@ int	load_edge_from_tsdb(struct parse	*P, struct hash	*id_to_edge, int	id, char	*
 	for(dtr = strtok(dtr_list, " ()");dtr && *dtr;dtr = strtok(NULL, " ()"))
 	{
 		int	eid = atoi(dtr);
-		if(eid < 0)continue;	// token
 		daughter_edge(e, get_edge(eid));
 	}
 	free(dtr_list);
@@ -523,6 +547,14 @@ int	load_edge_from_tsdb(struct parse	*P, struct hash	*id_to_edge, int	id, char	*
 	return 0;
 }
 
+struct tb_token	*parse_find_token(struct parse	*P, int	tid)
+{
+	int i;
+	for(i=0;i<P->ntokens;i++)
+		if(P->tokens[i]->id == tid)return P->tokens[i];
+	assert(!"error: no such token");
+}
+
 int is_usable_stored_parse(struct parse	*P)
 {
 	int i;
@@ -535,6 +567,40 @@ int is_usable_stored_parse(struct parse	*P)
 			P->nroots++;
 			P->roots = realloc(P->roots, sizeof(struct tb_edge*)*P->nroots);
 			P->roots[P->nroots-1] = e;
+		}
+		if(e->host)e->is_root = e->host->is_root;
+		int j, ntok = 0;
+		for(j=0;j<e->ndaughters;j++)
+			if(e->daughter[j]->sign == NULL)
+				ntok++; // e is a lexeme and this daughter was a token that we thought might be a real edge
+		assert((ntok == e->ndaughters) || (ntok == 0));
+		if(ntok)
+		{
+			e->ntokens = ntok;
+			e->tokens = malloc(sizeof(struct tb_token**) * ntok);
+			for(j=0;j<ntok;j++)
+				e->tokens[j] = parse_find_token(P, e->daughter[j]->id);
+			e->ndaughters = 0;
+			if(e->daughter)free(e->daughter);
+			e->daughter = NULL;
+			// lookup the lexical type
+			if(e->sign)free(e->sign);
+			e->sign = sign_with_lexnames_to_sign_with_lextypes(e->sign_with_lexnames);
+			if(!e->sign) { return -1; }
+		}
+	}
+	for(i=0;i<P->nedges;i++)
+	{
+		struct tb_edge	*e = P->edges[i];
+		if(e->sign == NULL)
+		{
+			// e was allocated in anticipation of a real edge with this ID,
+			// but it turned out to be a token.
+			free(e);
+			P->nedges--;
+			memmove(P->edges+i, P->edges+i+1, sizeof(e)*(P->nedges-i));
+			i--;
+			continue;
 		}
 	}
 
@@ -655,6 +721,7 @@ struct parse	*load_forest(struct tsdb	*profile, char	*pid)
 	int	edge_e_id = get_field(edges, "e-id", "integer");
 	int	edge_name = get_field(edges, "e-name", "string");
 	int	edge_status = get_field(edges, "e-status", "integer");
+	int	edge_type = get_field(edges, "e-type", "integer");
 	int	edge_start = get_field(edges, "e-start", "integer");
 	int	edge_end = get_field(edges, "e-end", "integer");
 	int	edge_daughters = get_field(edges, "e-daughters", "string");
@@ -666,7 +733,7 @@ struct parse	*load_forest(struct tsdb	*profile, char	*pid)
 	void edge_visitor(char	**edge)
 	{
 		int status = load_edge_from_tsdb(P, id_to_edge, atoi(edge[edge_e_id]),
-			edge[edge_name], atoi(edge[edge_status]),
+			edge[edge_name], atoi(edge[edge_type]), atoi(edge[edge_status]),
 			atoi(edge[edge_start]), atoi(edge[edge_end]),
 			edge[edge_daughters], edge[edge_alternates]);
 		if(status != 0)
@@ -711,6 +778,8 @@ void	web_parse(FILE	*f, char	*cgiargs)
 		goldpath = "/gold/erg/trec/";
 	if(!strcmp(path, "/ws01-test/"))
 		goldpath = "/gold/erg/ws01/";
+	if(!strcmp(path, "/wsj/rwsj00a-full/"))
+		goldpath = "/wsj/rwsj00a-topn/";
 
 	struct tsdb	*goldprofile = NULL;
 	if(goldpath)
@@ -797,6 +866,12 @@ void	web_parse(FILE	*f, char	*cgiargs)
 
 	if(!P)
 	{
+		webreply(f, "404 no stored forest found for this item");
+		free(id);
+		free(path);
+		return;
+		/* read_forest_from_ace() is out of date.
+		// why should we really support on-the-fly parsing anyway?
 		struct timeval	start, end;
 		gettimeofday(&start, NULL);
 		FILE	*p = invoke_ace(input);
@@ -811,7 +886,7 @@ void	web_parse(FILE	*f, char	*cgiargs)
 		fprintf(f, "done (%d edges connected to %d roots).<br/>\n", P->nedges, P->nroots);
 		gettimeofday(&end, NULL);
 		double	dt = (end.tv_usec - start.tv_usec) * 0.000001 + (end.tv_sec - start.tv_sec);
-		fprintf(f, "parsing time = %.1fs<br/>\n", dt);
+		fprintf(f, "parsing time = %.1fs<br/>\n", dt);*/
 	}
 
 	//printf("BEFORE unary closure:\n");
@@ -862,13 +937,11 @@ void	web_parse(FILE	*f, char	*cgiargs)
 }
 
 
+struct tsdb	*get_pinned_profile(char	*profile_id);
 int save_decisions(char	*profile_id, char	*parse_id, int	ncons, struct constraint	*cons)
 {
 	printf("have %d decisions to save to %s / %s\n", ncons, profile_id, parse_id);
-	unpin_all();
-	char	path[10240];
-	sprintf(path, "%s/%s", tsdb_home_path, profile_id);
-	struct tsdb	*t = cached_get_profile_and_pin(path);
+	struct tsdb	*t = get_pinned_profile(profile_id);
 	if(!t)return -1;
 
 	struct relation	*r = get_relation(t, "decision");
@@ -884,19 +957,10 @@ int save_decisions(char	*profile_id, char	*parse_id, int	ncons, struct constrain
 	int	d_date = get_field(r, "d-date", "date");
 
 	// first, purge all old records referring to this parse_id from the relation 
-	int i, j;
-	for(i=j=0;i<r->ntuples;i++)
-	{
-		if(!strcmp(r->tuples[i][d_parse_id], parse_id))
-		{
-			int k;
-			for(k=0;k<r->nfields;k++)free(r->tuples[i][k]);
-		}
-		else r->tuples[j++] = r->tuples[i];
-	}
-	r->ntuples = j;
+	purge_tuples(r, d_parse_id, parse_id);
 
 	// now, add the new tuples
+	int i;
 	for(i=0;i<ncons;i++)
 	{
 		struct constraint	*c = cons+i;
@@ -931,23 +995,10 @@ int save_decisions(char	*profile_id, char	*parse_id, int	ncons, struct constrain
 		tup[d_start] = strdup(start);
 		tup[d_end] = strdup(end);
 		tup[d_date] = strdup("?");
-		for(j=0;j<r->nfields;j++)if(!tup[j])tup[j] = strdup("");
-		if(r->ntuples+1 > r->atuples)
-		{
-			r->atuples = (r->ntuples+1) * 1.5;
-			r->tuples = realloc(r->tuples, sizeof(char**)*r->atuples);
-		}
-		r->tuples[r->ntuples] = malloc(sizeof(char*)*r->nfields);
-		memcpy(r->tuples[r->ntuples], tup, sizeof(char*)*r->nfields);
-		r->ntuples++;
+		add_tuple(r, tup);
 	}
-	tsdb_reindex_relation(r);
-	int res = tsdb_write_relation(t, r);
-	if(res != 0)
-	{
-		fprintf(stderr, "failed to write 'decision' relation.\n");
-		return -1;
-	}
+
+	if(reindex_and_write(t,r) != 0)return -1;
 
 	return 0;
 }
