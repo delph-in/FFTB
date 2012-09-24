@@ -6,6 +6,7 @@
 
 #include	"reconstruct.h"
 #include	<ace/token.h>
+#include	<ace/freeze.h>
 
 int	nunifications;
 
@@ -135,15 +136,11 @@ struct type	*tokstr_parse_value_of(char	*tokstr, char	*key)
 	else return tokstr_type_of_string(kp);
 }
 
-void	set_token_dg_carg(struct dg	*dg, struct type	*cargval)
+void	set_token_dg_feat(struct dg	*dg, struct type	*cargval, char	*feat)
 {
 	struct dg	*cdg;
-	cdg = dg_hop(dg, lookup_fname("+CARG"));
-	if(cdg)
-	{
-		cdg->type = cdg->xtype = cargval;
-		//printf("setting +CARG = %s\n", cargval->name);
-	}
+	cdg = dg_hop(dg, lookup_fname(feat));
+	if(cdg)cdg->type = cdg->xtype = cargval;
 }
 
 struct dg	*reconstruct_token(char	*tokstr, struct dg	*dg)
@@ -151,19 +148,17 @@ struct dg	*reconstruct_token(char	*tokstr, struct dg	*dg)
 	struct type	*cargval = tokstr_parse_value_of(tokstr, "+CARG ");
 	struct type	*predval = tokstr_parse_value_of(tokstr, "+PRED ");
 
-	// +PRED is the feature we consider important
-	struct dg	*pdg;
-	pdg = dg_hop(dg, lookup_fname("+PRED"));
-	if(predval && pdg)
-	{
-		pdg->type = pdg->xtype = predval;
-		//printf("setting +PRED = %s\n", predval->name);
-	}
-	//else fprintf(stderr, "missing +PRED value on token `%s'\n", tokstr);
+	if(predval)set_token_dg_feat(dg, predval, "+PRED");
+	if(cargval)set_token_dg_feat(dg, cargval, "+CARG");
 
-	// +CARG is the feature we consider important
-	if(cargval)set_token_dg_carg(dg, cargval);
-	//else fprintf(stderr, "missing +CARG value on token `%s'\n", tokstr);
+	// this would be done for us by build_token_dag if we managed to get
+	// the right values on the struct token -- however,
+	// they are not present (without parsing) on the struct tree.
+	// a better idea would be to do this tokstr_pars-ing before calling build_token_dag...
+	struct type	*fromval = tokstr_parse_value_of(tokstr, "+FROM ");
+	struct type	*toval = tokstr_parse_value_of(tokstr, "+TO ");
+	if(fromval)set_token_dg_feat(dg, fromval, "+FROM");
+	if(toval)set_token_dg_feat(dg, toval, "+TO");
 
 	return dg;
 }
@@ -177,6 +172,116 @@ struct type	*type_for_unquoted_string(char	*us)
 }
 
 int	do_reconstruct_tokens = 1;
+
+static void	skip_space(char	**S)
+{
+	while(isspace(**S))(*S)++;
+}
+
+static char	*read_symbol(char	**S)
+{
+	skip_space(S);
+	char	*tok = *S;
+	while(!isspace(**S) && **S!='=' && **S!=']' && **S!='"' && **S!='[' && **S!=0)(*S)++;
+	return tok;
+}
+
+static char	*read_string(char	**S)
+{
+	assert(**S=='"');
+	char	*string = *S, *q = 1+string, *p = q;
+	int	escape = 0;
+	while(*q && !(*q=='"' && !escape))
+	{
+		if(escape)escape = 0;
+		else if(*q=='\\')escape=1;
+		if(!escape)*p++ = *q;
+		q++;
+	}
+	if(*q++ != '"')return NULL;
+	*p++ = '"';
+	*S = q;
+	return string;
+}
+
+// "string"
+// type
+// type [ ATTR value ]
+// #tag
+// #tag=value
+int	parse_token_avm(struct hash	*taghash, struct dg	*d, char	**S)
+{
+	skip_space(S);
+	if(**S == '#')
+	{
+		(*S)++;
+		char	*tag = read_symbol(S);
+		char	delim = **S;
+		**S = 0;
+		struct dg	*found = hash_find(taghash, tag);
+		if(!found)
+		{
+			found = atomic_dg(top_type);
+			hash_add(taghash, strdup(tag), found);
+		}
+		**S = delim;
+		assert(!d->narcs);
+		permanent_forward_dg(d, found);
+		skip_space(S);
+		if(**S != '=')
+			return 0;
+		(*S)++;
+		skip_space(S);
+	}
+
+	char	*typename;
+	if(**S == '"')
+	{
+		typename = read_string(S);
+		if(!typename) { fprintf(stderr, "bad string in token avm\n"); exit(-1); }
+	}
+	else typename = read_symbol(S);
+	char	delim = **S;
+	**S = 0;
+	// must freeze_string() because if the type becomes a new temporary string, it will point at the argument...
+	d->type = d->xtype = lookup_type(freeze_string(typename));
+	**S = delim;
+	skip_space(S);
+
+	//printf("type %s\n", d->xtype->name);
+	//printf("lookahead: %s\n", *S);
+
+	if(**S != '[')
+		return 0;
+
+	(*S)++;	// skip over the opening bracket
+	skip_space(S);
+	while(**S != ']')
+	{
+		char	*feat = read_symbol(S);
+		char	delim = **S;
+		**S = 0;
+		int	fnum = lookup_fname(feat);
+		//printf("feature %s\n", feat);
+		**S = delim;
+		skip_space(S);
+		if(**S == ']' || **S == 0)
+		{
+			fprintf(stderr, "token structure string ended before a whole number of feature-value pairs\n");
+			exit(-1);
+		}
+		struct dg	*dest = atomic_dg(top_type);
+		d = add_dg_hop(d, fnum, dest);
+		parse_token_avm(taghash, dest, S);
+		skip_space(S);
+	}
+
+	assert(**S == ']');
+	(*S)++;
+	skip_space(S);
+
+	return 0;
+}
 
 struct dg	*reconstruct_tree(struct tree	*t, void	(*callback)(struct tree	*t, struct dg	*d))
 {
@@ -240,17 +345,38 @@ struct dg	*reconstruct_tree(struct tree	*t, void	(*callback)(struct tree	*t, str
 				//printf(" [ %s %d - %d ]\n", tt->label, tt->cfrom, tt->cto);
 				struct token	*tok = tl+i;
 				bzero(tok,sizeof(*tok));
+				char	*cpy = strdup(tt->tokens[i]), *c = cpy;
+				struct hash	*taghash = hash_new("tags");
+				tok->dg = atomic_dg(top_type);
+				parse_token_avm(taghash, tok->dg, &c);
+				hash_free(taghash);
+				free(cpy);
+				//printf("parsed token AVM:\n");
+				//print_dg(tok->dg);
+				//printf("\n");
+				/*
 				tok->string = t->label;
 				tok->cfrom = t->cfrom;
 				tok->cto = t->cto;
+				tok->npostags = 1;
+				tok->postags = malloc(sizeof(struct postag));
+				tok->postags[0].tag = NULL;
+				tok->postags[0].prob = "";
+				// one of these days we may have to break down and parse the AVM description in the t->tokens[] strings in a principled way, and just reconstruct exactly the AVM that is described.  it would really be a good idea... but I'm too lazy right now.
 				build_token_dag(tok);
-				tok->dg = reconstruct_token(tt->tokens[i], tok->dg);
+				tok->dg = reconstruct_token(tt->tokens[i], tok->dg);*/
 				tpl[i] = tl+i;
 			}
-			install_tokens_in_le(&le, tpl);
-//	printf("reconstructed lexeme DAG [l->stemlen = %d]:\n", l->stemlen);
-//	print_dg(le.dg);
-//	printf("\n");
+			int status = install_tokens_in_le(&le, tpl);
+			if(status != 0)
+			{
+				fprintf(stderr, "failed to install tokens in lexeme '%s'\n", l->word);
+				unify_backtrace();
+				exit(-1);
+			}
+	//printf("reconstructed lexeme DAG [l->stemlen = %d]:\n", l->stemlen);
+	//print_dg(le.dg);
+	//printf("\n");
 		}
 		else if(lkb_carg)
 		{
@@ -263,7 +389,7 @@ struct dg	*reconstruct_tree(struct tree	*t, void	(*callback)(struct tree	*t, str
 			tok.cto = -1;
 			build_token_dag(&tok);
 			struct type	*cargtype = type_for_unquoted_string(lkb_carg);
-			set_token_dg_carg(tok.dg, cargtype);
+			set_token_dg_feat(tok.dg, cargtype, "+CARG");
 			struct token	*tpl[1];
 			tpl[0] = &tok;
 			install_tokens_in_le(&le, tpl);
