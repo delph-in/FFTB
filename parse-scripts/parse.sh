@@ -12,7 +12,8 @@ rm -rf "${TSDBHOME}/${PROFILE}"
 {
 echo '(load "testing-preamble.lisp")'
 
-echo '(setf mycpu  :acetest1010)'
+#echo '(setf mycpu  :acetest1010)'
+echo '(setf mycpu  :acetestterg)'
 echo '(setf mycpucount '$2')'
 echo '(setf myskeleton "'$3'")'
 echo '(setf myprofile "'${PROFILE}'")'

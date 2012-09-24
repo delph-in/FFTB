@@ -88,11 +88,18 @@
       :class :acetestage :grammar erg :name "ape" :task '(:generate) :wait wait)
 
      (make-cpu 
-      :host (short-site-name)
-;      :host "nautilus"
+;      :host (short-site-name)
+      :host "nautilus"
       :spawn devace
-      :options (list "-g" "/home/sweaglesw/cdev/ace/erg-1010.dat" "-t" "--itsdb-forest" "-r" "root_strict root_informal root_frag root_inffrag")
+      :options (list "-g" "/home/sweaglesw/cdev/ace/erg-1010.dat" "-t" "--itsdb-forest" "-r" "root_strict root_informal root_frag root_inffrag" "--tnt-model" "/home/sweaglesw/logon/coli/tnt/models/wsj")
       :class :acetest1010 :grammar erg :name "ace" :task '(:parse) :wait wait)
+
+     (make-cpu 
+;      :host (short-site-name)
+      :host "nautilus"
+      :spawn devace
+      :options (list "-g" "/home/sweaglesw/cdev/ace/terg.dat" "-t" "--itsdb-forest" "-r" "root_strict root_informal root_frag root_inffrag" "--tnt-model" "/home/sweaglesw/logon/coli/tnt/models/wsj" "--max-chart-megabytes=7000")
+      :class :acetestterg :grammar erg :name "ace" :task '(:parse) :wait wait)
 
 	;; ERG generation with LKB, on a separate ERG trunk copy
      (make-cpu 
