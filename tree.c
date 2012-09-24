@@ -31,7 +31,7 @@ static char	*read_symbol(char	**S)
 {
 	skip_space(S);
 	char	*tok = *S;
-	while(!isspace(**S) && **S!=')' && **S!='"' && **S!='(' && **S!=0)(*S)++;
+	while(!isspace(**S) && **S!=')' && **S!='"' && **S!='(' && **S!='[' && **S!=']' && **S!=0)(*S)++;
 	return tok;
 }
 
@@ -231,6 +231,14 @@ static struct tree	*string_to_tree1(char	**S)
 		skip_space(&s);
 		if(!*s || *s==')')FAIL("expected type", s);
 		char	*type = read_symbol(&s);	// type
+		if(*s == '[')
+		{
+			s++;
+			if(*s != '"')FAIL("expected '\"'", s);
+			char	*gleform = read_string(&s);	// e.g. generic_n_le["dogma"]
+			if(*s != ']')FAIL("expected ']'", s);
+			s++;
+		}
 		if(*s)*s++ = 0;
 		skip_space(&s);
 		if(!*s || *s==')')FAIL("expected score", s);
