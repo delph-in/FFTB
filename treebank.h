@@ -9,6 +9,9 @@ struct tb_edge
 	int	npack, ndaughters;
 	struct tb_edge	**pack, **daughter;
 
+	struct tb_token	**tokens;
+	int				ntokens;
+
 	int	nparents;
 	int	is_root;
 	struct tb_edge	**parents;
@@ -19,11 +22,13 @@ struct tb_edge
 	long long	solutions;	// how many ways to unpack a root using this edge
 };
 
-struct token
+struct tb_token
 {
 	wchar_t	*text;
+	char	*avmstr;
 	int		from, to;
 	int		cfrom, cto;
+	int		id;
 };
 
 struct parse
@@ -31,7 +36,7 @@ struct parse
 	int	nedges, nroots;
 	struct tb_edge	**edges, **roots;
 	int	ntokens;
-	struct token	**tokens;
+	struct tb_token	**tokens;
 };
 
 enum

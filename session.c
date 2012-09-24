@@ -19,6 +19,8 @@
 #include	"treebank.h"
 #include	"reconstruct.h"
 
+char	*dqescape(char	*raw);
+
 void	compute_linkage(struct parse	*P, char	*linkage, int	max, long long N)
 {
 	int i, j;
@@ -80,13 +82,9 @@ void	find_discriminants(FILE	*f, struct parse	*P, int	from, int	to, long long	nt
 	for(i=0;i<nd;i++)
 	{
 		if(i > 0)fprintf(f, ",");
-		//char	*le_typed = d[i].lexical?to_letype_sign(d[i].sign):strdup(d[i].sign);
-		char *esc = qescape(d[i].sign);
-		//char *esc2 = qescape(le_typed);
+		char *esc = dqescape(d[i].sign);
 		fprintf(f, "{sign:\"%s\",count:%lld,from:%d,to:%d}", esc, d[i].count, d[i].from, d[i].to);
-		//free(esc2);
 		free(esc);
-		//free(le_typed);
 	}
 	if(d)free(d);
 }
@@ -152,7 +150,25 @@ struct tree	*extract_tree(struct tb_edge	*e, int	ucdepth)
 			t->daughters = calloc(sizeof(struct tree*),1);
 			t->daughters[0] = orth;
 
-			orth->label = strdup("_");	// our use of the tree doesn't depend on this and it's inconvenient to get it here
+			int	wlen = 0;
+			for(i=0;i<e->ntokens;i++)
+			{
+				if(i)wlen++;
+				wlen += wcslen(e->tokens[i]->text);
+			}
+			wchar_t	*orth_str = malloc(sizeof(wchar_t)*(wlen+4)), *wp=orth_str;
+			for(i=0;i<e->ntokens;i++)
+			{
+				if(i)wp += swprintf(wp, (orth_str+wlen+3-wp), L" ");
+				wp += swprintf(wp, (orth_str+wlen+3-wp), L"%S", e->tokens[i]->text);
+			}
+			int	mlen = wcstombs(NULL, orth_str, 0) + 1;
+			char	*mos = malloc(mlen+1);
+			wcstombs(mos, orth_str, mlen);
+			free(orth_str);
+
+			//orth->label = strdup("_");	// our use of the tree doesn't depend on this and it's inconvenient to get it here
+			orth->label = mos;
 			orth->tfrom = t->tfrom;
 			orth->tto = t->tto;
 			// ->ntokens  ( = the lexeme's ->stemlen...)
@@ -161,9 +177,10 @@ struct tree	*extract_tree(struct tb_edge	*e, int	ucdepth)
 			struct lexeme	*lex = get_lex_by_name_hash(t->label);
 			assert(lex != NULL);
 			orth->ntokens = lex->stemlen;
+			assert(orth->ntokens == e->ntokens);
 			orth->tokens = calloc(sizeof(char*),orth->ntokens);
 			int j;
-			for(j=0;j<orth->ntokens;j++)orth->tokens[j] = strdup("");
+			for(j=0;j<orth->ntokens;j++)orth->tokens[j] = strdup(e->tokens[j]->avmstr);
 			orth->cfrom = orth->cto = -1;
 		}
 		else
@@ -188,10 +205,10 @@ void	fsend_tree(FILE	*f, struct tree	*t)
 	{
 		// for whatever reason, grammarians prefer to see the lexical type as the full-form sign for a lexical node, rather than the lexeme identifier
 		struct lexeme	*lex = get_lex_by_name_hash(t->label);
-		esc = qescape(lex->lextype->name);
+		esc = dqescape(lex->lextype->name);
 	}
-	else esc = qescape(t->label);
-	char	*sesc = qescape(t->shortlabel);
+	else esc = dqescape(t->label);
+	char	*sesc = dqescape(t->shortlabel);
 	fprintf(f, "{label: \"%s\", shortlabel: \"%s\", from:%d, to:%d, daughters: [", esc, sesc, t->tfrom, t->tto);
 	free(esc);
 	free(sesc);
@@ -338,7 +355,7 @@ void	web_session(FILE	*f, char	*query)
 
 	void	send_escaped(char	*key, char	*value)
 	{
-		char	*esc = qescape(value);
+		char	*esc = dqescape(value);
 		fprintf(f, "%s: \"%s\",\n", key, esc);
 		free(esc);
 	}
@@ -354,11 +371,11 @@ void	web_session(FILE	*f, char	*query)
 	int slen = 1;
 	for(i=0;i<S->parse->ntokens;i++)
 	{
-		struct token	*t = S->parse->tokens[i];
+		struct tb_token	*t = S->parse->tokens[i];
 		if(i)fprintf(f, ",");
 		char	*foo = malloc(5 * wcslen(t->text));
 		wcstombs(foo, t->text, 5 * wcslen(t->text));
-		char	*esc = qescape(foo);
+		char	*esc = dqescape(foo);
 		free(foo);
 		fprintf(f, "{from:%d,to:%d,cfrom:%d,cto:%d,text:\"%s\"}", t->from, t->to, t->cfrom, t->cto, esc);
 		free(esc);

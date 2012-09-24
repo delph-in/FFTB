@@ -139,17 +139,6 @@ struct tb_edge	*get_chain_edge(struct parse	*Pout, struct hash	*chash, struct uc
 		return Pout->edges[I-1];
 	}
 
-	/*int i;
-	for(i=0;i<Pout->nedges;i++)
-	{
-		// this is slow for big forests
-		if(same_chain((*Chains)[i], c))
-		{
-			free(c.e);
-			return Pout->edges[i];
-		}
-	}*/
-
 	struct tb_edge	*e = calloc(sizeof(*e),1);
 	e->from = c.e[0]->from;
 	e->to = c.e[0]->to;
@@ -158,6 +147,11 @@ struct tb_edge	*get_chain_edge(struct parse	*Pout, struct hash	*chash, struct uc
 	e->sign_with_lexnames = chain_sign_with_lexnames(c);
 	e->ndaughters = c.e[c.n-1]->ndaughters;
 	e->daughter = calloc(sizeof(struct tb_edge*),e->ndaughters);
+	e->ntokens = c.e[c.n-1]->ntokens;
+	e->tokens = calloc(sizeof(struct tb_token*),e->ntokens);
+	struct tb_token	*parse_find_token(struct parse	*P, int	tid);
+	for(i=0;i<e->ntokens;i++)
+		e->tokens[i] = parse_find_token(Pout, c.e[c.n-1]->tokens[i]->id);
 	Pout->nedges++;
 	Pout->edges = realloc(Pout->edges, sizeof(struct tb_edge*)*Pout->nedges);
 	Pout->edges[Pout->nedges-1] = e;
@@ -206,11 +200,13 @@ struct parse	*do_unary_closure(struct parse	*Pin)
 	struct parse	*Pout = calloc(sizeof(*Pout),1);
 	int i;
 	Pout->ntokens = Pin->ntokens;
-	Pout->tokens = calloc(sizeof(struct token*),Pin->ntokens);
+	Pout->tokens = calloc(sizeof(struct tb_token*),Pin->ntokens);
 	for(i=0;i<Pin->ntokens;i++)
 	{
-		Pout->tokens[i] = calloc(sizeof(struct token),1);
+		Pout->tokens[i] = calloc(sizeof(struct tb_token),1);
 		Pout->tokens[i]->text = wcsdup(Pin->tokens[i]->text);
+		Pout->tokens[i]->avmstr = strdup(Pin->tokens[i]->avmstr);
+		Pout->tokens[i]->id = Pin->tokens[i]->id;
 		Pout->tokens[i]->from = Pin->tokens[i]->from;
 		Pout->tokens[i]->to = Pin->tokens[i]->to;
 		Pout->tokens[i]->cfrom = Pin->tokens[i]->cfrom;
