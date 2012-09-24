@@ -232,6 +232,7 @@ int	parse_token_avm(struct hash	*taghash, struct dg	*d, char	**S)
 			return 0;
 		(*S)++;
 		skip_space(S);
+		d = found;
 	}
 
 	char	*typename;
@@ -394,6 +395,7 @@ struct dg	*reconstruct_tree(struct tree	*t, void	(*callback)(struct tree	*t, str
 			tpl[0] = &tok;
 			install_tokens_in_le(&le, tpl);
 		}
+		assert(d != NULL);
 		if(callback)callback(t, d);
 		return d;
 	}
@@ -441,6 +443,12 @@ struct dg	*reconstruct_tree(struct tree	*t, void	(*callback)(struct tree	*t, str
 			}
 		}
 		struct dg	*d = finalize_tmp(rule_dg, 1);
+		if(!d)
+		{
+			fprintf(stderr, "reconstruction: cycle check failed for rule '%s'\n", t->label);
+			print_tree(t, 0);
+			return NULL;
+		}
 		if(callback)callback(t, d);
 		return d;
 	}
