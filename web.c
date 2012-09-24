@@ -16,8 +16,9 @@
 #include	<ace/hash.h>
 #include	<ace/mrs.h>
 
-#include	"tree.h"
-#include	"reconstruct.h"
+#include	<ace/tree.h>
+#include	<ace/reconstruct.h>
+
 #include	"treebank.h"
 
 #define	ERG_PATH	"/home/sweaglesw/cdev/ace/erg-1111.dat"

@@ -16,9 +16,10 @@
 #include	<ace/hash.h>
 #include	<ace/unicode.h>
 
-#include	"tree.h"
+#include	<ace/tree.h>
+#include	<ace/reconstruct.h>
+
 #include	"treebank.h"
-#include	"reconstruct.h"
 
 /* cache of profiles */
 

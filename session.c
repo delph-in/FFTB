@@ -15,9 +15,10 @@
 #include	<ace/lexicon.h>
 #include	<ace/hash.h>
 
-#include	"tree.h"
+#include	<ace/tree.h>
+#include	<ace/reconstruct.h>
+
 #include	"treebank.h"
-#include	"reconstruct.h"
 
 char	*dqescape(char	*raw);
 
