@@ -21,11 +21,9 @@
 
 #include	"treebank.h"
 
-#define	ERG_PATH	"/home/sweaglesw/cdev/ace/erg-1111.dat"
-//#define	ERG_PATH	"/home/sweaglesw/answer/ace/erg.dat"
+#define	ERG_PATH	"/home/sweagles/grammars/erg/erg.dat"
 
-char	*tsdb_home_path = "/home/sweaglesw/logon/lingo/lkb/src/tsdb/home/";
-//char	*tsdb_home_path = "/home/sweaglesw/answer/treebank/demo-profiles/";
+char	*tsdb_home_path = "/home/sweagles/logon/lingo/lkb/src/tsdb/home/";
 
 char	*only_tsdb_profile = NULL, *gold_tsdb_profile = NULL;
 
@@ -69,11 +67,11 @@ int	reindex_and_write(struct tsdb	*t, struct relation	*r)
 	return 0;
 }
 
-struct tsdb	*get_pinned_profile(char	*profile_id)
+struct tsdb	*get_pinned_profile(char	*path)
 {
 	unpin_all();
-	char	path[10240];
-	sprintf(path, "%s/%s", tsdb_home_path, profile_id);
+	//char	path[10240];
+	//sprintf(path, "%s/%s", tsdb_home_path, profile_id);
 	struct tsdb	*t = cached_get_profile_and_pin(path);
 	if(!t)return NULL;
 	return t;
@@ -94,9 +92,9 @@ purge_tuples(struct relation	*r, int	field, char	*value)
 	r->ntuples = j;
 }
 
-int	write_tree(char	*profile_id, char	*parse_id, char	*t_version, char	*t_active, char	*author)
+int	write_tree(char	*prof_path, char	*parse_id, char	*t_version, char	*t_active, char	*author)
 {
-	struct tsdb	*t = get_pinned_profile(profile_id);
+	struct tsdb	*t = get_pinned_profile(prof_path);
 	struct relation	*r = t?get_relation(t, "tree"):NULL;
 	if(!t || !r)return -1;
 
@@ -121,9 +119,9 @@ int	write_tree(char	*profile_id, char	*parse_id, char	*t_version, char	*t_active
 	return 0;
 }
 
-int	write_preference(char	*profile_id, char	*parse_id, char	*t_version, char	*result_id)
+int	write_preference(char	*prof_path, char	*parse_id, char	*t_version, char	*result_id)
 {
-	struct tsdb	*t = get_pinned_profile(profile_id);
+	struct tsdb	*t = get_pinned_profile(prof_path);
 	struct relation	*r = t?get_relation(t, "preference"):NULL;
 	if(!t || !r)return -1;
 
@@ -149,9 +147,9 @@ int	write_preference(char	*profile_id, char	*parse_id, char	*t_version, char	*re
 	return 0;
 }
 
-int	write_result(char	*profile_id, char	*parse_id, char	*result_id, char	*derivation, char	*mrs)
+int	write_result(char	*prof_path, char	*parse_id, char	*result_id, char	*derivation, char	*mrs)
 {
-	struct tsdb	*t = get_pinned_profile(profile_id);
+	struct tsdb	*t = get_pinned_profile(prof_path);
 	struct relation	*r = t?get_relation(t, "result"):NULL;
 	if(!t || !r)return -1;
 
@@ -261,6 +259,7 @@ int	save_tree_for_item(char	*profile_id, char	*parse_id, struct tree	*t)
 	if(!dag)
 	{
 		fprintf(stderr, "unable to reconstruct MRS for the tree I'm supposed to save\n");
+		clear_mrs();
 		clear_slab();
 		return -1;
 	}
@@ -271,6 +270,7 @@ int	save_tree_for_item(char	*profile_id, char	*parse_id, struct tree	*t)
 		else
 		{
 			fprintf(stderr, "unable to extract_mrs() from the reconstructed DAG\n");
+			clear_mrs();
 			clear_slab();
 			return -2;
 		}
@@ -279,6 +279,7 @@ int	save_tree_for_item(char	*profile_id, char	*parse_id, struct tree	*t)
 	int res = write_result(profile_id, parse_id, "0", derivation, mrs_string);
 	if(!res)res = write_preference(profile_id, parse_id, "1", "0");
 	free(derivation);
+	clear_mrs();
 	clear_slab();
 	return res;
 }
@@ -291,6 +292,9 @@ void	web_save(FILE	*f, char	*query)
 	struct session	*S = get_session(id);
 	if(!S) { webreply(f, "404 no such session"); return; }
 	if(!S->parse_id) { webreply(f, "500 no parse id"); return; }
+
+	char	prof_path[10240];
+	sprintf(prof_path, "%s/%s", tsdb_home_path, S->profile_id);
 
 	// save decisions to the 'decision' relation
 	// possibly also record a 'preference' tuple and a 'result' tuple
@@ -307,13 +311,13 @@ void	web_save(FILE	*f, char	*query)
 		if(!S->gold_active[i])continue;
 		cons[ncons] = *c; cons[ncons++].sign = c->sign?strdup(c->sign):NULL;
 	}
-	int result = save_decisions(S->profile_id, S->parse_id, ncons, cons);
+	int result = save_decisions(prof_path, S->parse_id, ncons, cons);
 	free(cons);
 
 	long long	remaining = count_remaining_trees(S->parse, S->local_dec, S->nlocal_dec);
 
 	// write a record to 'tree'
-	if(!result)result = write_tree(S->profile_id, S->parse_id, "1", (remaining==1)?"1":"0", getenv("LOGNAME"));
+	if(!result)result = write_tree(prof_path, S->parse_id, "1", (remaining==1)?"1":"0", getenv("LOGNAME"));
 
 	if(remaining == 1)
 	{
@@ -324,15 +328,15 @@ void	web_save(FILE	*f, char	*query)
 		assert(i < S->parse->nedges);
 		struct tree	*t = extract_tree(S->parse->edges[i], 0);
 		if(!t)result = -1;
-		if(!result)result = save_tree_for_item(S->profile_id, S->parse_id, t);
+		if(!result)result = save_tree_for_item(prof_path, S->parse_id, t);
 
 		free_tree(t);
 	}
 	else
 	{
 		// clear the 'preference' relation and the 'result' relation
-		if(!result)result = write_result(S->profile_id, S->parse_id, NULL, NULL, NULL);
-		if(!result)result = write_preference(S->profile_id, S->parse_id, NULL, NULL);
+		if(!result)result = write_result(prof_path, S->parse_id, NULL, NULL, NULL);
+		if(!result)result = write_preference(prof_path, S->parse_id, NULL, NULL);
 	}
 
 	if(result == 0)webreply(f, "200 ok");
@@ -801,9 +805,9 @@ void	web_update(FILE	*f, char	*path)
 				input);
 		}
 	}
-	free(cgi);
 	if(path)
 	{
+		free(cgi);
 		fprintf(f, "</table>\n");
 		html_footers(f);
 	}
@@ -886,6 +890,7 @@ main(int	argc, char	*argv[])
 		}
 	}
 	printf("grammar image: %s\n", grammar_ace_image_path);
+	ace_load_grammar(grammar_ace_image_path);
 
 	if(argc==5 && !strcmp(argv[4], "autoupdate"))
 	{
@@ -898,7 +903,6 @@ main(int	argc, char	*argv[])
 	register_server_fd(fd, web_callback, NULL);
 	signal(SIGINT, quit_server_event_loop);
 	signal(SIGPIPE, pipe_handler);
-	ace_load_grammar(grammar_ace_image_path);
 	//daemonize("web.log");
 	server_event_loop();
 	report_timers();

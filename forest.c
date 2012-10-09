@@ -938,11 +938,11 @@ void	web_parse(FILE	*f, char	*cgiargs)
 }
 
 
-struct tsdb	*get_pinned_profile(char	*profile_id);
-int save_decisions(char	*profile_id, char	*parse_id, int	ncons, struct constraint	*cons)
+struct tsdb	*get_pinned_profile(char	*prof_path);
+int save_decisions(char	*prof_path, char	*parse_id, int	ncons, struct constraint	*cons)
 {
-	printf("have %d decisions to save to %s / %s\n", ncons, profile_id, parse_id);
-	struct tsdb	*t = get_pinned_profile(profile_id);
+	printf("have %d decisions to save to %s / %s\n", ncons, prof_path, parse_id);
+	struct tsdb	*t = get_pinned_profile(prof_path);
 	if(!t)return -1;
 
 	struct relation	*r = get_relation(t, "decision");
