@@ -98,7 +98,7 @@
 ;      :host (short-site-name)
       :host "nautilus"
       :spawn devace
-      :options (list "-g" "/home/sweaglesw/cdev/ace/terg.dat" "-t" "--itsdb-forest" "-r" "root_strict root_informal root_frag root_inffrag" "--tnt-model" "/home/sweaglesw/logon/coli/tnt/models/wsj" "--max-chart-megabytes=7000")
+      :options (list "-g" "/home/sweaglesw/cdev/ace/erg.dat" "-t" "--itsdb-forest" "-r" "root_strict root_informal root_frag root_inffrag" "--tnt-model" "/home/sweaglesw/logon/coli/tnt/models/wsj" "--max-chart-megabytes=2000" "--max-unpack-megabytes=2500")
       :class :acetestterg :grammar erg :name "ace" :task '(:parse) :wait wait)
 
 	;; ERG generation with LKB, on a separate ERG trunk copy

@@ -720,7 +720,7 @@ struct parse	*load_forest(struct tsdb	*profile, char	*pid)
 	if(!edges)goto noedges;
 	int	edge_parse_id = get_field(edges, "parse-id", "integer");
 	int	edge_e_id = get_field(edges, "e-id", "integer");
-	int	edge_name = get_field(edges, "e-name", "string");
+	int	edge_label = get_field(edges, "e-label", "string");
 	int	edge_status = get_field(edges, "e-status", "integer");
 	int	edge_type = get_field(edges, "e-type", "integer");
 	int	edge_start = get_field(edges, "e-start", "integer");
@@ -734,7 +734,7 @@ struct parse	*load_forest(struct tsdb	*profile, char	*pid)
 	void edge_visitor(char	**edge)
 	{
 		int status = load_edge_from_tsdb(P, id_to_edge, atoi(edge[edge_e_id]),
-			edge[edge_name], atoi(edge[edge_type]), atoi(edge[edge_status]),
+			edge[edge_label], atoi(edge[edge_type]), atoi(edge[edge_status]),
 			atoi(edge[edge_start]), atoi(edge[edge_end]),
 			edge[edge_daughters], edge[edge_alternates]);
 		if(status != 0)
