@@ -286,9 +286,8 @@ int	save_tree_for_item(char	*profile_id, char	*parse_id, struct tree	*t)
 
 void	web_save(FILE	*f, char	*query)
 {
-	assert(strlen(query) >= 6);
-	if(strncmp(query, "/save?", 6)) { webreply(f, "500 internal error"); return; }
-	int	id = atoi(query+6);
+	int	id, accepted;
+	if(2 != sscanf(query, "/save?%d&accepted=%d", &id, &accepted)) { webreply(f, "500 internal error"); return; }
 	struct session	*S = get_session(id);
 	if(!S) { webreply(f, "404 no such session"); return; }
 	if(!S->parse_id) { webreply(f, "500 no parse id"); return; }
@@ -313,13 +312,21 @@ void	web_save(FILE	*f, char	*query)
 	}
 	int result = save_decisions(prof_path, S->parse_id, ncons, cons);
 	free(cons);
+	if(accepted==-1)
+	{
+		if(result == 0)webreply(f, "200 ok");
+		else webreply(f, "500 fail");
+		return;	// don't write tree, preference, result unless 'accept' or 'reject' was clicked
+	}
 
 	long long	remaining = count_remaining_trees(S->parse, S->local_dec, S->nlocal_dec);
+	if(accepted)assert(remaining == 1);
 
 	// write a record to 'tree'
-	if(!result)result = write_tree(prof_path, S->parse_id, "1", (remaining==1)?"1":"0", getenv("LOGNAME"));
 
-	if(remaining == 1)
+	if(!result)result = write_tree(prof_path, S->parse_id, "1", accepted?"1":"0", getenv("LOGNAME"));
+
+	if(accepted == 1)
 	{
 		// save one result to the 'result' relation and a pointer to it in 'preference'
 		// count_remaining_trees() has set up the right flags for extract_tree()

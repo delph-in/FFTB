@@ -189,11 +189,20 @@ function show_trees()
 	var max_w = 0;
 	while(svg.firstChild)svg.removeChild(svg.firstChild);
 
+	var host = document.getElementById("disc-scroller");
+
+	if(message.ntrees == 1 && hilight_set.length == 0)
+	{
+		accept_reject = document.createElement("div")
+		accept_reject.style.textAlign = "right";
+		accept_reject.innerHTML="<a href='javascript:do_accept();'>accept</a> | <a href='javascript:do_reject()'>reject</a>"
+		host.appendChild(accept_reject);
+	}
+
 	var availWidth = 400, availHeight = 400;
 
 	if(message.trees.length > 0)
 	{
-		var host = document.getElementById("disc-scroller");
 		host.appendChild(svg);
 		availWidth = host.clientWidth - 18;
 		availHeight = host.clientHeight - 18;
@@ -203,7 +212,7 @@ function show_trees()
 		if(svg.parentNode)svg.parentNode.removeChild(svg);
 		if(message.error)
 		{
-			document.getElementById("disc-scroller").appendChild(document.createTextNode(message.error));
+			host.appendChild(document.createTextNode(message.error));
 		}
 	}
 

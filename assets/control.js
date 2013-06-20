@@ -5,11 +5,11 @@ function dec_to_string(d)
 
 var dspan = "";
 
-function do_save(and_then)
+function do_save(accepted, and_then)
 {
-	xr = new XMLHttpRequest();
-	sid = window.location.search;
-	xr.open("POST", "/save" + sid, true);
+	var xr = new XMLHttpRequest();
+	var sid = window.location.search;
+	xr.open("POST", "/save" + sid + "&accepted=" + accepted, true);
 	xr.onreadystatechange = function()
 	{
 		if(xr.readyState==4)
@@ -29,14 +29,22 @@ function do_save(and_then)
 
 function next_item()
 {
-	do_save(function(){
-		window.location = "/private/next" + window.location.search; });
+	window.location = "/private/next" + window.location.search;
 }
 
 function prev_item()
 {
-	do_save(function(){
-		window.location = "/private/prev" + window.location.search; });
+	window.location = "/private/prev" + window.location.search;
+}
+
+function do_accept()
+{
+	do_save(1, next_item);
+}
+
+function do_reject()
+{
+	do_save(0, next_item);
 }
 
 function get_candidates(request_decisions)
@@ -97,6 +105,7 @@ function got_reply()
 function refilter()
 {
 	get_candidates(0);
+	do_save(-1, function(){})
 }
 
 var message;
