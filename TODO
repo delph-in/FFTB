@@ -1,10 +1,12 @@
-- commandline revision
++ commandline revision
 	--browser
 	--items
 	--gold
 		--auto
 + exit button
 + comment editor
+
+- implement behavior of --items
 
 - allow rejection without narrowing to a single tree
 - allow acceptance of all the remaining trees...?

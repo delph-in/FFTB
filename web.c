@@ -5,9 +5,13 @@
 #include	<assert.h>
 #include	<signal.h>
 #include	<sys/types.h>
+#include	<sys/socket.h>
+#include	<netinet/in.h>
+#include	<arpa/inet.h>
 #include	<dirent.h>
 #include	<wchar.h>
 #include	<locale.h>
+#include	<getopt.h>
 
 #include	<liba.h>
 #include	<tsdb.h>
@@ -954,40 +958,82 @@ void	pipe_handler(int s)
 	signal(SIGPIPE, pipe_handler);
 }
 
+launch_browser(char	*url)
+{
+	char	command[10240];
+#if defined(__APPLE__)
+	sprintf(command, "open %s", url);
+#else
+	sprintf(command, "firefox %s &", url);
+#endif
+	system(command);
+}
+
 char	*grammar_ace_image_path = NULL;
 char	*grammar_roots = "root_strict root_inffrag root_informal root_frag";	// used when invoking ACE online
 
+struct option long_options[] = {
+	{"gold", 1, NULL, 'g'},
+	{"auto", 0, NULL, 'a'},
+	{"items", 1, NULL, 'i'},
+	{"browser", 0, NULL, 'b'}
+	};
+
+char	*item_list_str = NULL;
+
 main(int	argc, char	*argv[])
 {
-	if(argc == 1)grammar_ace_image_path = ERG_PATH;
-	else
+	int	ch, browser = 0, autoupdate = 0;
+	while( (ch = getopt_long(argc, argv, "g:abi:", long_options, NULL)) != -1) switch(ch)
 	{
-		grammar_ace_image_path = argv[1];
-		//if(argc > 2)grammar_roots = argv[2];
-		if(argc == 3)
-		{
-			tsdb_home_path = argv[2];
-			printf("TSDB profiles in: %s\n", tsdb_home_path);
-		}
-		else if(argc >= 4)
-		{
-			tsdb_home_path = argv[2];
-			only_tsdb_profile = argv[2];
-			gold_tsdb_profile = argv[3];
-			printf("Just one TSDB profile: %s\n", only_tsdb_profile);
-			printf("Would update from profile: %s\n", gold_tsdb_profile);
-		}
+		case	'g': gold_tsdb_profile = optarg; break;
+		case	'a': autoupdate = 1; break;
+		case	'b': browser = 1; break;
+		case	'i': item_list_str = optarg; break;
+	}
+	assert(argc == optind+2);
+
+	grammar_ace_image_path = argv[optind];
+	tsdb_home_path = argv[optind+1];
+	if(gold_tsdb_profile)
+	{
+		only_tsdb_profile = tsdb_home_path;
+		printf("Just one TSDB profile: %s\n", only_tsdb_profile);
+		printf("Would update from profile: %s\n", gold_tsdb_profile);
 	}
 	printf("grammar image: %s\n", grammar_ace_image_path);
 	ace_load_grammar(grammar_ace_image_path);
 
-	if(argc==5 && !strcmp(argv[4], "autoupdate"))
+	if(autoupdate)
 	{
+		assert(gold_tsdb_profile != NULL);
 		web_update(stdout, NULL);
 		return 0;
 	}
 
-	int	fd = tcpip_list(9080);
+	int port = browser?0:9080;
+	struct sockaddr_in	addr;
+	socklen_t	sl = sizeof(addr);
+	bzero(&addr, sl);
+	addr.sin_family = AF_INET;
+	addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	addr.sin_port = htons(port);
+	int fd = socket(AF_INET, SOCK_STREAM, 0);
+	assert(fd>=0);
+	int r = bind(fd, (struct sockaddr*)&addr, sl);
+	assert(r == 0);
+	if(port == 0)
+	{
+		r = getsockname(fd,(struct sockaddr*)&addr,&sl);
+		assert(r == 0);
+		assert(sl == sizeof(addr));
+		port = ntohs(addr.sin_port);
+	}
+	char	url[1024];
+	sprintf(url, "http://127.0.0.1:%d/private/", port);
+	if(listen(fd, 128)) { perror("listen"); exit(-1); }
+	printf("listening on %s\n", url);
+	if(browser)launch_browser(url);
 	setlocale(LC_ALL, "");
 	register_server_fd(fd, web_callback, NULL);
 	signal(SIGINT, quit_server_event_loop);
