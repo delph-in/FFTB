@@ -4,7 +4,7 @@
 	--gold
 		--auto
 + exit button
-- comment editor
++ comment editor
 
 - allow rejection without narrowing to a single tree
 - allow acceptance of all the remaining trees...?
