@@ -27,6 +27,7 @@
 
 #define	ERG_PATH	"/home/sweagles/grammars/erg/erg.dat"
 
+char	*assets_path = "assets";
 char	*tsdb_home_path = "/home/sweagles/logon/lingo/lkb/src/tsdb/home/";
 
 char	*only_tsdb_profile = NULL, *gold_tsdb_profile = NULL;
@@ -906,6 +907,13 @@ void	web_update(FILE	*f, char	*path)
 
 /* system for receiving web requests */
 
+void	webrelativefile(FILE	*f, char	*mime, char	*parent, char	*sub)
+{
+	char	path[10240];
+	sprintf(path, "%s/%s", parent, sub);
+	webfile(f, mime, path);
+}
+
 void	web_callback(int	fd, void	*ptr, struct sockaddr_in	addr)
 {
 	char	method[128], path[102400];
@@ -926,11 +934,11 @@ void	web_callback(int	fd, void	*ptr, struct sockaddr_in	addr)
 		if(!strncmp(path, "/parse?", 7))
 			web_parse(f, path+7);
 		else if(!strcmp(path, "/assets/render.js"))
-			webfile(f, "text/javascript", "assets/render.js");
+			webrelativefile(f, "text/javascript", assets_path, "render.js");
 		else if(!strcmp(path, "/assets/control.js"))
-			webfile(f, "text/javascript", "assets/control.js");
+			webrelativefile(f, "text/javascript", assets_path, "control.js");
 		else if(!strncmp(path, "/session?", 9))
-			webfile(f, "text/html", "assets/index.html");
+			webrelativefile(f, "text/html", assets_path, "index.html");
 		else if(!strncmp(path, "/next?", 6) || !strncmp(path, "/prev?", 6))
 			web_nav(f, path);
 		else if(!strncmp(path, "/update?", 8))
@@ -976,7 +984,8 @@ struct option long_options[] = {
 	{"gold", 1, NULL, 'g'},
 	{"auto", 0, NULL, 'a'},
 	{"items", 1, NULL, 'i'},
-	{"browser", 0, NULL, 'b'}
+	{"browser", 0, NULL, 'b'},
+	{"webdir", 1, NULL, 'w'}
 	};
 
 char	*item_list_str = NULL;
@@ -984,12 +993,13 @@ char	*item_list_str = NULL;
 main(int	argc, char	*argv[])
 {
 	int	ch, browser = 0, autoupdate = 0;
-	while( (ch = getopt_long(argc, argv, "g:abi:", long_options, NULL)) != -1) switch(ch)
+	while( (ch = getopt_long(argc, argv, "g:abi:w:", long_options, NULL)) != -1) switch(ch)
 	{
 		case	'g': gold_tsdb_profile = optarg; break;
 		case	'a': autoupdate = 1; break;
 		case	'b': browser = 1; break;
 		case	'i': item_list_str = optarg; break;
+		case	'w': assets_path = optarg; break;
 	}
 	assert(argc == optind+2);
 
