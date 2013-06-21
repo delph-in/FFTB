@@ -597,6 +597,9 @@ function show_sentence()
 	document.getElementById("yellow").onclick = no_hilight;
 }
 
+function save_decisions()
+	{ do_save(-1, function(){}); }
+
 function nixdecision(dec)
 {
 	for(var x in decisions)
@@ -605,6 +608,7 @@ function nixdecision(dec)
 		{
 			decisions.splice(x,1);
 			refilter();
+			save_decisions();
 			return;
 		}
 	}
@@ -655,14 +659,14 @@ function render_decision(dec, nixertype)
 			off.style.color="blue";
 			off.style.textDecoration = "underline";
 			off.style.cursor = "pointer";
-			off.onclick = function() { dec.enabled = 0; refilter(); }
+			off.onclick = function() { dec.enabled = 0; refilter(); save_decisions(); }
 		}
 		else
 		{
 			on.style.color="blue";
 			on.style.textDecoration = "underline";
 			on.style.cursor = "pointer";
-			on.onclick = function() { dec.enabled = 1; refilter(); }
+			on.onclick = function() { dec.enabled = 1; refilter(); save_decisions(); }
 		}
 	}
 	d.appendChild(nixer);
@@ -706,6 +710,7 @@ function render_decisions(label, color, decs, nixertype)
 				for(var x in decs)
 					decs[x].enabled = 0;
 				refilter();
+				save_decisions();
 			}
 		}
 		if(!all_on)
@@ -717,6 +722,7 @@ function render_decisions(label, color, decs, nixertype)
 				for(var x in decs)
 					decs[x].enabled = 1;
 				refilter();
+				save_decisions();
 			}
 		}
 		title.appendChild(document.createTextNode(" "));
@@ -764,6 +770,7 @@ function select_discriminant(d)
 {
 	decisions.push({type:'=',sign:d.sign,from:d.from,to:d.to,inferred:0});
 	refilter();
+	save_decisions();
 }
 
 function open_window(url)

@@ -105,7 +105,6 @@ function got_reply()
 function refilter()
 {
 	get_candidates(0);
-	do_save(-1, function(){})
 }
 
 var message;
