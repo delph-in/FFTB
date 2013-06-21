@@ -598,7 +598,14 @@ function show_sentence()
 }
 
 function save_decisions()
-	{ do_save(-1, function(){}); }
+{
+	status = -1
+	if(message.item_status == "accepted")
+		status = 1
+	if(message.item_status == "rejected")
+		status = 0
+	do_save(status, function(){});
+}
 
 function nixdecision(dec)
 {
@@ -764,6 +771,8 @@ function show_decisions()
 		newd.appendChild(old_manual_dec_frag);
 	if(old_inf_decisions.length)
 		newd.appendChild(old_inf_dec_frag);
+
+	document.getElementById("comment").value = message.comment;
 }
 
 function select_discriminant(d)

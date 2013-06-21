@@ -69,6 +69,7 @@ struct session
 	int					ngold_dec;
 	struct constraint	*gold_dec;
 	char				*gold_active;
+	char	*comment;
 };
 
 struct parse	*do_unary_closure(struct parse	*Pin);
@@ -87,6 +88,8 @@ struct tree	*extract_tree(struct tb_edge	*e, int	ucdepth);
 
 int	get_t_active(char	*prof_id, char	*parse_id);
 int	get_t_active_p(struct tsdb	*t, char	*parse_id);
+char	*get_t_comment(char	*prof_id, char	*parse_id);
+char	*get_t_comment_p(struct tsdb	*t, char	*parse_id);
 char	*get_parse_id_p(struct tsdb	*t, char	*item_id);
 char	*status_string(int	t_active);
 char	*status_color(int	t_active);

@@ -10,6 +10,7 @@
 .sent_space { color: #aaa; }
 .discrim { float: left; margin: 10px; padding: 10px; border: 1px solid #c94; background: #ccf; text-align: center; }
 .discrim .count { margin-top: 10px; font-weight: bold; color: darkgreen; }
+#comment-container { float: bottom; }
 </style>
 </head>
 
@@ -31,7 +32,11 @@
 </div>
 </div>
 
-<div style="position: absolute; top: 200px; width: 380px; right: 0px; bottom: 0px; background: rgb(200,200,255); padding: 10px; overflow: auto;" id='decisions'>
+<div style="position: absolute; top: 200px; width: 380px; right: 0px; bottom: 0px; background: rgb(200,200,255); padding: 10px; overflow: auto;" id='decisions-container'>
+<div id='decisions'></div>
+<div id='comment-container'>
+<textarea id='comment' oninput='save_comment();'></textarea>
+</div>
 </div>
 </div>
 

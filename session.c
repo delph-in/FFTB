@@ -365,6 +365,7 @@ void	web_session(FILE	*f, char	*query)
 	fprintf(f, "{");
 	send_escaped("profile_id", S->profile_id);
 	send_escaped("item_status", status_string(get_t_active(S->profile_id, S->parse_id)));
+	send_escaped("comment", get_t_comment(S->profile_id, S->parse_id));
 	send_escaped("item_id", S->item_id);
 	send_escaped("item", S->input);
 	long long	ntrees = count_remaining_trees(S->parse, c, nc);
@@ -482,4 +483,22 @@ void	web_session(FILE	*f, char	*query)
 	for(i=0;i<nc;i++)
 		if(c[i].sign)free(c[i].sign);
 	if(c)free(c);
+}
+
+void	web_comment(FILE	*f, char	*query)
+{
+	int	id = atoi(query);
+	struct session	*S = get_session(id);
+	if(!S) { webreply(f, "404 no such session"); return; }
+
+	char	*rest = strchr(query, '&');
+	if(!rest) { webreply(f, "500 bad syntax"); return; }
+	rest = cgidecode(rest+1);
+	S->comment = strdup(rest);
+	char	prof_path[10240];
+	sprintf(prof_path, "%s/%s", tsdb_home_path, S->profile_id);
+	char	t_active[32];
+	sprintf(t_active, "%d", get_t_active(S->profile_id, S->parse_id));
+	int result = write_tree(prof_path, S->parse_id, "1", t_active, getenv("LOGNAME"), S->comment);
+	webreply(f, "200 ok");
 }

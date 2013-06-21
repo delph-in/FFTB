@@ -924,6 +924,10 @@ void	web_parse(FILE	*f, char	*cgiargs)
 		memset(S->gold_active, 1, ngold_dec);
 	else memset(S->gold_active, 0, ngold_dec);
 
+	char	*comment = (profile&&pid)?get_t_comment_p(profile, pid):"";
+	if(!*comment)comment = (goldprofile&&goldpid)?get_t_comment_p(goldprofile, goldpid):"";
+	S->comment = strdup(comment);
+
 	add_session(S);
 
 	fprintf(f, "Session ID = %d<br/>\n", S->id);

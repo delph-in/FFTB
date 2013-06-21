@@ -89,7 +89,7 @@ purge_tuples(struct relation	*r, int	field, char	*value)
 	r->ntuples = j;
 }
 
-int	write_tree(char	*prof_path, char	*parse_id, char	*t_version, char	*t_active, char	*author)
+int	write_tree(char	*prof_path, char	*parse_id, char	*t_version, char	*t_active, char	*author, char	*comment)
 {
 	struct tsdb	*t = get_pinned_profile(prof_path);
 	struct relation	*r = t?get_relation(t, "tree"):NULL;
@@ -99,6 +99,7 @@ int	write_tree(char	*prof_path, char	*parse_id, char	*t_version, char	*t_active,
 	int	tree_t_version = get_field(r, "t-version", "integer");
 	int	tree_t_active = get_field(r, "t-active", "integer");
 	int	tree_t_author = get_field(r, "t-author", "string");
+	int	tree_t_comment = get_field(r, "t-comment", "string");
 
 	// first, purge all old records referring to this parse_id from the relation 
 	purge_tuples(r, tree_parse_id, parse_id);
@@ -109,6 +110,7 @@ int	write_tree(char	*prof_path, char	*parse_id, char	*t_version, char	*t_active,
 	tup[tree_t_version] = strdup(t_version);
 	tup[tree_t_active] = strdup(t_active);
 	tup[tree_t_author] = strdup(author);
+	tup[tree_t_comment] = strdup(comment);
 
 	add_tuple(r, tup);
 	if(reindex_and_write(t,r) != 0)return -1;
@@ -321,7 +323,7 @@ void	web_save(FILE	*f, char	*query)
 
 	// write a record to 'tree'
 
-	if(!result)result = write_tree(prof_path, S->parse_id, "1", accepted?"1":"0", getenv("LOGNAME"));
+	if(!result)result = write_tree(prof_path, S->parse_id, "1", accepted?"1":"0", getenv("LOGNAME"), S->comment);
 
 	if(accepted == 1)
 	{
@@ -423,6 +425,24 @@ int	get_t_active_p(struct tsdb	*t, char	*parse_id)
 	char	**tuple = tsdb_lookup_relation_with_key(tree, t_parse_id, parse_id);
 	if(!tuple)return -1;
 	return atoi(tuple[t_t_active]);
+}
+
+char	*get_t_comment(char	*prof_id, char	*parse_id)
+{
+	char	prof_path[10240];
+	sprintf(prof_path, "%s/%s", tsdb_home_path, prof_id);
+	struct tsdb	*t = cached_get_profile_and_pin(prof_path);
+	return get_t_comment_p(t, parse_id);
+}
+
+char	*get_t_comment_p(struct tsdb	*t, char	*parse_id)
+{
+	struct relation	*tree = get_relation(t, "tree");
+	int	t_parse_id = get_field(tree, "parse-id", "integer"),
+		t_t_comment = get_field(tree, "t-comment", "string");
+	char	**tuple = tsdb_lookup_relation_with_key(tree, t_parse_id, parse_id);
+	if(!tuple)return "";
+	return tuple[t_t_comment];
 }
 
 char	*get_parse_id_p(struct tsdb	*t, char	*item_id)
@@ -712,7 +732,8 @@ long long	update_item(struct tsdb	*gold, struct tsdb	*prof, char	*iid, char	**co
 
 		printf(" ... saving this tree as preferred, with decisions from gold");
 		int result = save_decisions(prof->path, prof_pid, ngolddecs, golddecs);
-		if(!result)result = write_tree(prof->path, prof_pid, "1", "1", getenv("LOGNAME"));
+		char	*comment = get_t_comment_p(gold, gold_pid);
+		if(!result)result = write_tree(prof->path, prof_pid, "1", "1", getenv("LOGNAME"), comment);
 		if(!result)result = save_tree_for_item(prof->path, prof_pid, t);
 		printf(" [ %s ]", result?"fail":"success");
 	}
@@ -919,6 +940,8 @@ void	web_callback(int	fd, void	*ptr, struct sockaddr_in	addr)
 	{
 		if(!strncmp(path, "/session?", 9))
 			web_session(f, path+9);
+		else if(!strncmp(path, "/comment?", 9))
+			web_comment(f, path+9);
 		else if(!strncmp(path, "/save?", 6))
 			web_save(f, path);
 		else fclose(f);

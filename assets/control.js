@@ -116,3 +116,13 @@ function exit_system()
 {
 	window.location = "/private/exit";
 }
+
+function save_comment()
+{
+	var xr = new XMLHttpRequest();
+	var sid = window.location.search;
+	text = document.getElementById("comment").value
+	message.comment = text
+	xr.open("POST", "/comment" + sid + "&" + encodeURIComponent(text), true);
+	xr.send("");
+}
