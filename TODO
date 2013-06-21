@@ -21,6 +21,12 @@ strange bug:
 
 things that would be *nice*:
 	various UI enhancements
+	[ ] selective unpacking for verification of at least 1 valid parse, inspection of its probability, and possible acceptance thereof
+		[ ] possible implementation: expand the current 'unary closure' forest expansion operation to also include a 'context' field for up to N grandparents and also the choice of which packed representative of the immediate daughters to use.  this would increase the in-memory forest size by a nontrivial factor, but would (maybe?) still be manageable...
+			- plenty of advantages of this:
+				- selective unpacking becomes very easy: best hypothesis for edge E is just ranked by its local score plus its daughters' best candidate scores.
+				- feature forest-based maxent training becomes within easy reach... if we can store the feature forests for all the training items in memory. heh. at least we could extract the feature forests themselves.
+				- the local context is large enough that some latent unification failures are likely to show up if they are locally replayed, allowing pruning of some of these edges
 	[ ] allow selection of old-style discriminants (i.e. break down unary chains), optionally
 	[ ] sentence-picker screen could show additional info about each item, e.g. number of parses, number of choices made, remaining ambiguity
 	[ ] a way to see an example [sub]tree before picking a discriminant
