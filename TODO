@@ -1,3 +1,14 @@
+- commandline revision
+	--browser
+	--items
+	--gold
+		--auto
++ exit button
+- comment editor
+
+- allow rejection without narrowing to a single tree
+- allow acceptance of all the remaining trees...?
+
 + write nothing instead of 0 when skipping an item
 	[ ] should i maybe write a -1 to 't-active' when there is no tree record present, if there is a parse record? ... in profiles coming from stephan, if he cares about having a record there it will already be there. (shrug)
 	ideal: UI shows status of each item, both in annotator view and list view:  accepted (>=1 t-active), rejected (0 t-active), unannotated (-1 t-active)
