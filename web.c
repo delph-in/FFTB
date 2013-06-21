@@ -70,10 +70,7 @@ int	reindex_and_write(struct tsdb	*t, struct relation	*r)
 struct tsdb	*get_pinned_profile(char	*path)
 {
 	unpin_all();
-	//char	path[10240];
-	//sprintf(path, "%s/%s", tsdb_home_path, profile_id);
 	struct tsdb	*t = cached_get_profile_and_pin(path);
-	if(!t)return NULL;
 	return t;
 }
 
@@ -381,15 +378,21 @@ void	web_nav(FILE	*f, char	*query)
 		return;
 	}
 
-	i += dir;
-	if(i < 0 || i >= items->ntuples)
-	{ 
-		tsdb_free_profile(profile);
-		webreply(f, "404 no such item");
-		return;
-	}
+	// skip forward or backward until we come to an unannotated item
+	char	*new_id, *parse_id;
+	do
+	{
+		i += dir;
+		if(i < 0 || i >= items->ntuples)
+		{ 
+			tsdb_free_profile(profile);
+			webreply(f, "404 no such item");
+			return;
+		}
+		new_id = items->tuples[i][item_id];
+		parse_id = get_parse_id_p(profile, new_id);
+	} while(-1 != get_t_active_p(profile, parse_id));
 
-	char	*new_id = items->tuples[i][item_id];
 	printf("old item id '%s' + dir %d = new item id '%s'\n", this_id, dir, new_id);
 	fprintf(f, "HTTP/1.1 302 Moved\r\n");
 	char	*cgi = cgiencode(S->profile_id);
@@ -403,6 +406,48 @@ void	web_nav(FILE	*f, char	*query)
 }
 
 /* system for picking a profile and a sentence */
+
+int	get_t_active(char	*prof_id, char	*parse_id)
+{
+	char	prof_path[10240];
+	sprintf(prof_path, "%s/%s", tsdb_home_path, prof_id);
+	struct tsdb	*t = cached_get_profile_and_pin(prof_path);
+	return get_t_active_p(t, parse_id);
+}
+
+int	get_t_active_p(struct tsdb	*t, char	*parse_id)
+{
+	struct relation	*tree = get_relation(t, "tree");
+	int	t_parse_id = get_field(tree, "parse-id", "integer"),
+		t_t_active = get_field(tree, "t-active", "integer");
+	char	**tuple = tsdb_lookup_relation_with_key(tree, t_parse_id, parse_id);
+	if(!tuple)return -1;
+	return atoi(tuple[t_t_active]);
+}
+
+char	*get_parse_id_p(struct tsdb	*t, char	*item_id)
+{
+	struct relation	*parse = get_relation(t, "parse");
+	int	p_parse_id = get_field(parse, "parse-id", "integer"),
+		p_i_id = get_field(parse, "i-id", "integer");
+	char	**tuple = tsdb_lookup_relation_with_key(parse, p_i_id, item_id);
+	if(!tuple)return "-1";
+	return tuple[p_parse_id];
+}
+
+char	*status_string(int	t_active)
+{
+	if(t_active==-1)return "unannotated";
+	if(t_active==0)return "rejected";
+	return "accepted";
+}
+
+char	*status_color(int	t_active)
+{
+	if(t_active==-1)return "#ff0";
+	if(t_active==0)return "#f00";
+	return "#0f0";
+}
 
 void	web_slash(FILE	*f, char	*path)
 {
@@ -445,6 +490,9 @@ void	web_slash(FILE	*f, char	*path)
 			char	*iid = items->tuples[i][item_id];
 			fprintf(f, "<tr><td><a href=\"/private/parse?profile=%s&id=%s\">%s</a></td>\n",
 				cgi, iid, iid);
+			char	*parse_id = get_parse_id_p(profile, iid);
+			int	t_active = get_t_active_p(profile, parse_id);
+			fprintf(f, "<td></td><td style='background: %s;'>&nbsp;</td><td></td>\n", status_color(t_active));
 			fprintf(f, "<td>%s</td></tr>\n",
 				input);
 		}

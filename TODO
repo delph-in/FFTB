@@ -1,4 +1,9 @@
-- write -1 instead of 0 when skipping an item (if it has parses, at least)
++ write nothing instead of 0 when skipping an item
+	[ ] should i maybe write a -1 to 't-active' when there is no tree record present, if there is a parse record? ... in profiles coming from stephan, if he cares about having a record there it will already be there. (shrug)
+	ideal: UI shows status of each item, both in annotator view and list view:  accepted (>=1 t-active), rejected (0 t-active), unannotated (-1 t-active)
+	        + status display done
+		+ status should only be changed by explicit action... e.g. changing a discriminant can take you from accepted/rejected to unannotated, or clicking accept/reject can take you from unannotated to accepted or rejected
+		+ next/prev should only visit unannotated items
 - don't clobber results file ; if gold selected tree is not present, append it. otherwise noop.
 - color code for: overconstrained but no active gold
 - when multiple active gold trees exist, color coding becomes murky...

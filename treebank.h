@@ -85,6 +85,12 @@ int	get_decisions(struct tsdb	*profile, char	*pid, struct constraint	**Decs);
 struct parse	*load_forest(struct tsdb	*profile, char	*pid);
 struct tree	*extract_tree(struct tb_edge	*e, int	ucdepth);
 
+int	get_t_active(char	*prof_id, char	*parse_id);
+int	get_t_active_p(struct tsdb	*t, char	*parse_id);
+char	*get_parse_id_p(struct tsdb	*t, char	*item_id);
+char	*status_string(int	t_active);
+char	*status_color(int	t_active);
+
 extern char *tsdb_home_path;
 
 extern char	*grammar_ace_image_path;

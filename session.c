@@ -364,6 +364,7 @@ void	web_session(FILE	*f, char	*query)
 	http_headers(f, "text/javascript");
 	fprintf(f, "{");
 	send_escaped("profile_id", S->profile_id);
+	send_escaped("item_status", status_string(get_t_active(S->profile_id, S->parse_id)));
 	send_escaped("item_id", S->item_id);
 	send_escaped("item", S->input);
 	long long	ntrees = count_remaining_trees(S->parse, c, nc);

@@ -903,7 +903,7 @@ function show_discriminants()
 function show_item_and_profile_id()
 {
 	document.getElementById("profile-id").innerHTML = message.profile_id;
-	document.getElementById("item-id").innerHTML = message.item_id;
+	document.getElementById("item-id").innerHTML = message.item_id + " -- " + message.item_status;
 	//document.getElementById("nextlink").href = "next" + window.location.search;
 	//document.getElementById("prevlink").href = "prev" + window.location.search;
 	document.getElementById("listlink").href = "/private" + message.profile_id;
