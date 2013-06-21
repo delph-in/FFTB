@@ -111,3 +111,8 @@ var message;
 var decisions = [];
 
 get_candidates(1);
+
+function exit_system()
+{
+	window.location = "/private/exit";
+}

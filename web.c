@@ -449,6 +449,14 @@ char	*status_color(int	t_active)
 	return "#0f0";
 }
 
+void	web_exit(FILE	*f)
+{
+	http_headers(f, "text/html");
+	fprintf(f, "<html><body onload=\"window.open('', '_self', ''); window.close(); self.close();\">Goodbye! You may safely close this window.</body></html>\n");
+	fclose(f);
+	quit_server_event_loop();
+}
+
 void	web_slash(FILE	*f, char	*path)
 {
 	int	is_profile = 0;
@@ -482,7 +490,7 @@ void	web_slash(FILE	*f, char	*path)
 		sprintf(title, "ACE Treebanker: %s", path);
 		html_headers(f, title);
 		char	*cgi = cgiencode(path);
-		fprintf(f, "<a href=\"/private/update?%s\">Automatic Update</a>\n", cgi);
+		fprintf(f, "<a href=\"/private/update?%s\">Automatic Update</a>  | <a href=\"/private/exit\">Exit</a><br/>\n", cgi);
 		fprintf(f, "<table>\n");
 		for(i=0;i<items->ntuples;i++)
 		{
@@ -504,6 +512,7 @@ void	web_slash(FILE	*f, char	*path)
 	else
 	{
 		html_headers(f, "ACE Treebanker Home");
+		fprintf(f, "<a href=\"/private/exit\">[Exit Treebanker]</a><hr/>\n");
 		for(i=0;i<n;i++)
 		{
 			fprintf(f, "<a href='%s/'>%s</a><br/>\n", names[i]->d_name, names[i]->d_name);
@@ -901,6 +910,8 @@ void	web_callback(int	fd, void	*ptr, struct sockaddr_in	addr)
 			web_nav(f, path);
 		else if(!strncmp(path, "/update?", 8))
 			web_update(f, path+8);
+		else if(!strcmp(path, "/exit"))
+			web_exit(f);
 		else web_slash(f, path);
 		//else webreply(f, "404 not found");
 	}
@@ -950,7 +961,7 @@ main(int	argc, char	*argv[])
 	if(argc==5 && !strcmp(argv[4], "autoupdate"))
 	{
 		web_update(stdout, NULL);
-		return;
+		return 0;
 	}
 
 	int	fd = tcpip_list(9080);
@@ -961,4 +972,5 @@ main(int	argc, char	*argv[])
 	//daemonize("web.log");
 	server_event_loop();
 	report_timers();
+	return 0;
 }

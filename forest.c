@@ -982,6 +982,7 @@ int save_decisions(char	*prof_path, char	*parse_id, int	ncons, struct constraint
 		if(c->type == constraintExactly)
 		{
 			tup[d_type] = strdup("7");	// types 1-6 are already claimed, see tsdb/lisp/redwoods.lsp reconstruct-discriminants()
+			// type 7 has been allocated as "twig"... the maximal sequence of unary rules dominating either a lexical type or a non-unary rule
 		}
 		else
 		{
