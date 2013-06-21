@@ -1,3 +1,10 @@
+- write -1 instead of 0 when skipping an item (if it has parses, at least)
+- don't clobber results file ; if gold selected tree is not present, append it. otherwise noop.
+- color code for: overconstrained but no active gold
+- when multiple active gold trees exist, color coding becomes murky...
+   - currently I compare to the first active tree and either show dark green or light blue.
+   - should maybe be golden brown if multiple trees remain, or dark green/auto-accept if just one
+
 things that *must* be done before any kind of release:
 	[ ]   UI to select a gold profile for an update operation
 	[ ]   verify that there is at least one *real* (reconstructable) tree left at each step, or *minimally* before saving
