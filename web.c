@@ -967,13 +967,13 @@ void	pipe_handler(int s)
 	signal(SIGPIPE, pipe_handler);
 }
 
-launch_browser(char	*url)
+launch_browser(char	*browsername, char	*url)
 {
 	char	command[10240];
 #if defined(__APPLE__)
 	sprintf(command, "open %s", url);
 #else
-	sprintf(command, "firefox %s &", url);
+	sprintf(command, "%s %s &", browsername, url);
 #endif
 	system(command);
 }
@@ -982,11 +982,11 @@ char	*grammar_roots = "root_strict root_inffrag root_informal root_frag";	// use
 
 struct option long_options[] = {
 #define	GOLD_OPTION	1001
-	{"gold", 1, NULL, GOLD_OPTION},
-	{"auto", 0, NULL, 'a'},
-	{"items", 1, NULL, 'i'},
-	{"browser", 0, NULL, 'b'},
-	{"webdir", 1, NULL, 'w'}
+	{"gold", required_argument, NULL, GOLD_OPTION},
+	{"auto", no_argument, NULL, 'a'},
+	{"items", required_argument, NULL, 'i'},
+	{"browser", optional_argument, NULL, 'b'},
+	{"webdir", required_argument, NULL, 'w'}
 	};
 
 struct hash	*item_list_hash = NULL;
@@ -1011,14 +1011,15 @@ iid_is_active(char	*iid)
 
 usage(char	*app, int status)
 {
-	printf("usage:  %s -g grammar.dat [--gold profile_path [--auto]] [--browser] [--webdir web_path] profile_path\n", app);
+	printf("usage:  %s -g grammar.dat [--gold profile_path [--auto]] [--browser [firefox]] [--webdir web_path] profile_path\n", app);
 	exit(status);
 }
 
 main(int	argc, char	*argv[])
 {
 	int	ch, browser = 0, autoupdate = 0;
-	while( (ch = getopt_long(argc, argv, "Vhg:abi:w:", long_options, NULL)) != -1) switch(ch)
+	char	*browsername = "firefox";
+	while( (ch = getopt_long(argc, argv, "Vhg:ab;i:w:", long_options, NULL)) != -1) switch(ch)
 	{
 		case	GOLD_OPTION: gold_tsdb_profile = optarg; break;
 		case	'g':
@@ -1026,7 +1027,7 @@ main(int	argc, char	*argv[])
 			ace_load_grammar(optarg);
 			break;
 		case	'a': autoupdate = 1; break;
-		case	'b': browser = 1; break;
+		case	'b': browser = 1; if(optarg)browsername = optarg; break;
 		case	'i': hash_item_list(optarg); break;
 		case	'w': assets_path = optarg; break;
 		case	'V': case	'h':	usage(argv[0],0);
@@ -1071,7 +1072,7 @@ main(int	argc, char	*argv[])
 	sprintf(url, "http://127.0.0.1:%d/private/", port);
 	if(listen(fd, 128)) { perror("listen"); exit(-1); }
 	printf("listening on %s\n", url);
-	if(browser)launch_browser(url);
+	if(browser)launch_browser(browsername, url);
 	setlocale(LC_ALL, "");
 	register_server_fd(fd, web_callback, NULL);
 	signal(SIGINT, quit_server_event_loop);
