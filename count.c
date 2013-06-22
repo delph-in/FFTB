@@ -39,7 +39,7 @@ int	label_is_present(char	*label, char	*uchain)
 	return 0;
 }
 
-int	incompatible(int	from, int	to, char	*uc_label, struct constraint	c, int edge_is_lexical)
+int	incompatible(int	from, int	to, char	*uc_label, int	nbreaks, int	*breaks, struct constraint	c, int edge_is_lexical)
 {
 	if(c.from == from && c.to == to)
 	{
@@ -53,6 +53,15 @@ int	incompatible(int	from, int	to, char	*uc_label, struct constraint	c, int edge
 		if(c.type == constraintAbsent)
 			return label_is_present(c.sign, uc_label)?1:0;	// the label is there or not
 	}
+	if(c.from <= from && c.to >= to)
+	{
+		// e strictly contained in c
+		return 0;	// if it is unsatisfied above us in the tree and we didn't notice, then there is a crossing bracket somewhere that we will notice.  what about ternary rules?  can go from outside to inside without an edge that has exactly the span of c or crossing c....
+		// answer: dan found a case that had this problem.
+		// if the string is:  X Y Z    and we ask for a condition on the span X Y, but there's an edge over X Y Z that breaks down into edges on X, Y, and Z individually, then we never pass through an edge on X Y.
+		// solution: to know to reject some edges, we need to inspect their daughter spans too.
+		// hence break inspection code under 'c strictly contained in e'
+	}
 	if(c.from >= from && c.to <= to)
 	{
 		// c strictly contained in e
@@ -61,12 +70,21 @@ int	incompatible(int	from, int	to, char	*uc_label, struct constraint	c, int edge
 			if(c.type == constraintAbsent)return 0;	// can't still be violated
 			else return 1;	// can't still be satisfied
 		}
+		if(c.type == constraintExactly || c.type == constraintIsAConstituent || c.type == constraintPresent)
+		{
+			// requires that the span in question is a constituent.
+			// with binary rules, an edge that is bigger than c will split into either (a) more edges bigger than c, (b) an edge the same size as c, or (c) an edge that crosses c.
+			// but with ternary rules, the bigger edge can split into edges inside of c without an intermediate edge the same size as c ... make sure this edge doesn't do that.
+			int k;
+			for(k=0;k<nbreaks;k++)
+			{
+				// an internal break that is *strictly* internal to c is a problem.
+				// it means one of this edge's daughters crosses c.
+				if(breaks[k] > c.from && breaks[k] < c.to)
+					return 1; // incompatible
+			}
+		}
 		return 0;	// can still be satisfied/violated
-	}
-	if(c.from <= from && c.to >= to)
-	{
-		// e strictly contained in c
-		return 0;	// if it is unsatisfied above us in the tree and we didn't notice, then there is a crossing bracket somewhere that we will notice
 	}
 	if(c.to <= from)return 0;	// c strictly before e
 	if(c.from >= to)return 0;	// c strictly after e
@@ -80,7 +98,7 @@ int	incompatible(int	from, int	to, char	*uc_label, struct constraint	c, int edge
 
 long long	count_remaining_trees_r(struct tb_edge	*e, int	nc, struct constraint	*c)
 {
-	long long	n = 1;
+	long long	n;
 	int	i, bad = 0;
 
 	if(e->unpackings != -1)
@@ -92,11 +110,15 @@ long long	count_remaining_trees_r(struct tb_edge	*e, int	nc, struct constraint	*
 		return n;
 	}
 
+	int	nbreaks = e->ndaughters-1;
+	int	breaks[nbreaks+1];
+	for(i=0;i<nbreaks;i++)breaks[i] = e->daughter[i]->to;
 	for(i=0;i<nc;i++)
-		if(incompatible(e->from, e->to, e->sign, c[i], (e->ndaughters==0)?1:0))bad = 1;
+		if(incompatible(e->from, e->to, e->sign, nbreaks, breaks, c[i], (e->ndaughters==0)?1:0))bad = 1;
 
 	if(!bad)
 	{
+		n = 1;
 		for(i=0;i<e->ndaughters;i++)
 			n *= count_remaining_trees_r(e->daughter[i], nc, c);
 	}
@@ -238,9 +260,12 @@ int	tree_satisfies_constraints(struct tree	*t, struct constraint	*c, int	nc)
 		t = t->daughters[0];	// unary; repeat
 	}
 	// 't' is the bottom of a unary chain
+	int	nbreaks = t->ndaughters-1;
+	int	breaks[nbreaks+1];
+	for(i=0;i<nbreaks;i++)breaks[i] = t->daughters[i]->tto;
 	for(i=0;i<nc;i++)
 	{
-		if(incompatible(t->tfrom, t->tto, uc_label, c[i], (t->daughters[0]->ndaughters==0)?1:0))
+		if(incompatible(t->tfrom, t->tto, uc_label, nbreaks, breaks, c[i], (t->daughters[0]->ndaughters==0)?1:0))
 		{
 			printf("gold tree node '%s' conflicts with '%s'\n", uc_label, c[i].sign);
 			return 0;
