@@ -126,6 +126,7 @@ void	end_session(struct session	*S)
 	free(S);
 }
 
+/*
 FILE	*invoke_ace(char	*input)
 {
 	char	tmpn[1024] = "/tmp/input-XXXXXX";
@@ -138,6 +139,7 @@ FILE	*invoke_ace(char	*input)
 	sprintf(command, "~/cdev/ace/ace -g %s -O %s -r '%s'", grammar_ace_image_path, tmpn, grammar_roots);
 	return popen(command, "r");
 }
+*/
 
 char	*sign_with_lexnames_to_sign_with_lextypes(char	*swln)
 {

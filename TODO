@@ -5,9 +5,10 @@
 		--auto
 + exit button
 + comment editor
++ implement behavior of --items
 
-- implement behavior of --items
-
+- whenever a new span becomes underlined in annotation, check that the newly-unique tree for that span is actually unifiable.
+- when reporting failed reconstruction, offer the failed rule name, argument position, path and types. also preferably show the derivation tree.
 - allow rejection without narrowing to a single tree
 - allow acceptance of all the remaining trees...?
 

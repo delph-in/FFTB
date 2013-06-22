@@ -398,7 +398,7 @@ void	web_nav(FILE	*f, char	*query)
 		}
 		new_id = items->tuples[i][item_id];
 		parse_id = get_parse_id_p(profile, new_id);
-	} while(-1 != get_t_active_p(profile, parse_id));
+	} while(-1 != get_t_active_p(profile, parse_id) || !iid_is_active(new_id));
 
 	printf("old item id '%s' + dir %d = new item id '%s'\n", this_id, dir, new_id);
 	fprintf(f, "HTTP/1.1 302 Moved\r\n");
@@ -521,6 +521,7 @@ void	web_slash(FILE	*f, char	*path)
 		{
 			char	*input = items->tuples[i][item_input];
 			char	*iid = items->tuples[i][item_id];
+			if(!iid_is_active(iid))continue;
 			fprintf(f, "<tr><td><a href=\"/private/parse?profile=%s&id=%s\">%s</a></td>\n",
 				cgi, iid, iid);
 			char	*parse_id = get_parse_id_p(profile, iid);
@@ -977,42 +978,69 @@ launch_browser(char	*url)
 	system(command);
 }
 
-char	*grammar_ace_image_path = NULL;
 char	*grammar_roots = "root_strict root_inffrag root_informal root_frag";	// used when invoking ACE online
 
 struct option long_options[] = {
-	{"gold", 1, NULL, 'g'},
+#define	GOLD_OPTION	1001
+	{"gold", 1, NULL, GOLD_OPTION},
 	{"auto", 0, NULL, 'a'},
 	{"items", 1, NULL, 'i'},
 	{"browser", 0, NULL, 'b'},
 	{"webdir", 1, NULL, 'w'}
 	};
 
-char	*item_list_str = NULL;
+struct hash	*item_list_hash = NULL;
+
+hash_item_list(char	*items)
+{
+	char	*iid, *sep=" \t\r,";	// generous set of iid separators...
+	item_list_hash = hash_new("active item list");
+	for(iid=strtok(items, sep);iid;iid=strtok(NULL, sep))
+		hash_add(item_list_hash, strdup(iid), (void*)0x1);
+}
+
+iid_is_active(char	*iid)
+{
+	if(item_list_hash != NULL)
+	{
+		if(hash_find(item_list_hash, iid))return 1;
+		else return 0;
+	}
+	else return 1;
+}
+
+usage(char	*app, int status)
+{
+	printf("usage:  %s -g grammar.dat [--gold profile_path [--auto]] [--browser] [--webdir web_path] profile_path\n", app);
+	exit(status);
+}
 
 main(int	argc, char	*argv[])
 {
 	int	ch, browser = 0, autoupdate = 0;
-	while( (ch = getopt_long(argc, argv, "g:abi:w:", long_options, NULL)) != -1) switch(ch)
+	while( (ch = getopt_long(argc, argv, "Vhg:abi:w:", long_options, NULL)) != -1) switch(ch)
 	{
-		case	'g': gold_tsdb_profile = optarg; break;
+		case	GOLD_OPTION: gold_tsdb_profile = optarg; break;
+		case	'g':
+			printf("grammar image: %s\n", optarg);
+			ace_load_grammar(optarg);
+			break;
 		case	'a': autoupdate = 1; break;
 		case	'b': browser = 1; break;
-		case	'i': item_list_str = optarg; break;
+		case	'i': hash_item_list(optarg); break;
 		case	'w': assets_path = optarg; break;
+		case	'V': case	'h':	usage(argv[0],0);
+		default: usage(argv[0],-1);
 	}
-	assert(argc == optind+2);
+	if(argc != optind+1)usage(argv[0],-1);
 
-	grammar_ace_image_path = argv[optind];
-	tsdb_home_path = argv[optind+1];
+	tsdb_home_path = argv[optind];
 	if(gold_tsdb_profile)
 	{
 		only_tsdb_profile = tsdb_home_path;
 		printf("Just one TSDB profile: %s\n", only_tsdb_profile);
 		printf("Would update from profile: %s\n", gold_tsdb_profile);
 	}
-	printf("grammar image: %s\n", grammar_ace_image_path);
-	ace_load_grammar(grammar_ace_image_path);
 
 	if(autoupdate)
 	{

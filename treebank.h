@@ -94,6 +94,8 @@ char	*get_parse_id_p(struct tsdb	*t, char	*item_id);
 char	*status_string(int	t_active);
 char	*status_color(int	t_active);
 
+int	iid_is_active(char	*iid);
+
 extern char *tsdb_home_path;
 
 extern char	*grammar_ace_image_path;
