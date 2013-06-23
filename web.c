@@ -49,7 +49,21 @@ void	add_tuple(struct relation	*r, char	**tup)
 {
 	int	j;
 
-	for(j=0;j<r->nfields;j++)if(!tup[j])tup[j] = strdup("");
+	for(j=0;j<r->nfields;j++)
+	{
+		if(!tup[j])
+		{
+			char	*type = r->fields[j].type;
+			if(!strcasecmp(type, "integer"))tup[j] = strdup("-1");
+			else if(!strcasecmp(type, "string"))tup[j] = strdup("");
+			else if(!strcasecmp(type, "date"))tup[j] = strdup("23-6-2013 14:28:24");	// XXX fix me
+			else
+			{
+				fprintf(stderr, "unknown tsdb type ':%s'\n", type);
+				tup[j] = strdup("");
+			}
+		}
+	}
 	if(r->ntuples+1 > r->atuples)
 	{
 		r->atuples = (r->ntuples+1) * 1.5;
@@ -224,7 +238,7 @@ char	*build_derivation(char	*str, struct tree	*t)
 		for(i=0;i<t->ntokens;i++)
 		{
 			char	*e = dqescape(t->tokens[i]);
-			str += sprintf(str, " \"%s\"", e);
+			str += sprintf(str, " 0 \"%s\"", e);
 			free(e);
 		}
 	}

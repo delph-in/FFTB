@@ -1,3 +1,4 @@
+- token avm strings in derivations need IDs before them
 - stephan wants -1's for all integer fields
 
 - nothing should be saved to the profile until 'accept' or 'reject' is pressed, perhaps -- including decisions, comments, trees, whatnot

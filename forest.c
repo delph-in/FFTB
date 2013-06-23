@@ -1002,7 +1002,7 @@ int save_decisions(char	*prof_path, char	*parse_id, int	ncons, struct constraint
 		char	end[32]; sprintf(end, "%d", c->to);
 		tup[d_start] = strdup(start);
 		tup[d_end] = strdup(end);
-		tup[d_date] = strdup("?");
+		//tup[d_date] = strdup("?");	// XXX fix me
 		add_tuple(r, tup);
 	}
 
