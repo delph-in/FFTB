@@ -58,7 +58,6 @@ struct constraint
 struct session
 {
 	char	*profile_id, *item_id;
-	char	*gold_profile_id;
 	char	*input;
 	char	*parse_id;
 	struct parse	*parse;
@@ -95,6 +94,7 @@ char	*status_string(int	t_active);
 char	*status_color(int	t_active);
 
 int	iid_is_active(char	*iid);
+char	*get_gold_profile_path(char	*profile_id);
 
 extern char *tsdb_home_path;
 

@@ -55,23 +55,32 @@ unpin_all()
 		cache[i].pin = 0;
 }
 
-struct tsdb	*cached_get_profile_and_pin(char	*path)
+struct tsdb	*cached_get_profile_and_pin(char	*inpath)
 {
 	int i;
+	char	*path = strdup(inpath), *sl;
+	// collapse double slashes... paths are produced with differing assumptions
+	while( (sl = strstr(path, "//")) != NULL )
+		memmove(sl, sl+1, strlen(sl+1)+1);
 	for(i=0;i<ncache;i++)
 	{
 		if(!strcmp(cache[i].path, path))
 		{
 			cache[i].pin = 1;
+			free(path);
 			return cache[i].profile;
 		}
 	}
 	if(ncache >= 5)purge_cache();
 	struct tsdb	*T = load_tsdb(path);
-	if(!T)return NULL;
+	if(!T)
+	{
+		free(path);
+		return NULL;
+	}
 	ncache++;
 	cache = realloc(cache, sizeof(struct profile_cache)*ncache);
-	cache[ncache-1].path = strdup(path);
+	cache[ncache-1].path = path;
 	cache[ncache-1].profile = T;
 	cache[ncache-1].pin = 1;
 	return T;
@@ -112,7 +121,6 @@ void	end_session(struct session	*S)
 
 	if(S->profile_id)free(S->profile_id);
 	if(S->item_id)free(S->item_id);
-	if(S->gold_profile_id)free(S->gold_profile_id);
 	if(S->input)free(S->input);
 	if(S->parse_id)free(S->parse_id);
 	if(S->parse)free_parse(S->parse);
@@ -776,6 +784,7 @@ void	web_parse(FILE	*f, char	*cgiargs)
 	struct tsdb	*profile = cached_get_profile_and_pin(fullpath);
 	if(!profile) { webreply(f, "500 unable to read TSDB profile"); free(id); free(path); return; }
 
+/*
 	char	*goldpath = NULL;
 	if(!strcmp(path, "/trec-test/"))
 		goldpath = "/gold/erg/trec/";
@@ -790,6 +799,16 @@ void	web_parse(FILE	*f, char	*cgiargs)
 		char	goldfullpath[10240];
 		sprintf(goldfullpath, "%s/%s", tsdb_home_path, goldpath);
 		goldprofile = cached_get_profile_and_pin(goldfullpath);
+		if(!goldprofile) { webreply(f, "500 unable to read gold TSDB profile"); free(id); free(path); return; }
+	}*/
+
+	struct tsdb	*goldprofile = NULL;
+	char	*goldfullpath = get_gold_profile_path(path);
+	if(goldfullpath)
+	{
+		goldprofile = cached_get_profile_and_pin(goldfullpath);
+		free(goldfullpath);
+		goldfullpath = NULL;
 		if(!goldprofile) { webreply(f, "500 unable to read gold TSDB profile"); free(id); free(path); return; }
 	}
 
@@ -808,7 +827,7 @@ void	web_parse(FILE	*f, char	*cgiargs)
 		char	*goldinput = get_item_by_id(goldprofile, id);
 		if(!goldinput)
 		{
-			fprintf(stderr, "item id %s does not exist in %s\n", id, goldpath);
+			fprintf(stderr, "item id %s does not exist in %s\n", id, goldprofile->path);
 			free(path);free(id);free(input);
 			webreply(f, "500 no such gold item");
 			return;
@@ -909,7 +928,6 @@ void	web_parse(FILE	*f, char	*cgiargs)
 
 	struct session	*S = calloc(sizeof(*S),1);
 	S->profile_id = strdup(path);
-	S->gold_profile_id = goldpath?strdup(goldpath):NULL;
 	S->item_id = strdup(id);
 	S->input = input;	// already strdup'd
 	S->parse = P;
