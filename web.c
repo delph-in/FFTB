@@ -328,13 +328,24 @@ void	web_save(FILE	*f, char	*query)
 		if(!S->gold_active[i])continue;
 		cons[ncons] = *c; cons[ncons++].sign = c->sign?strdup(c->sign):NULL;
 	}
-	int result = save_decisions(prof_path, S->parse_id, ncons, cons);
-	if(accepted==-1)
+	int result = 0;
+
+	switch(accepted)
 	{
-		if(result == 0)webreply(f, "200 ok");
-		else webreply(f, "500 fail");
-		free(cons);
-		return;	// don't write tree, preference, result unless 'accept' or 'reject' was clicked
+		case	-1:
+			if(result == 0)webreply(f, "200 ok");
+			else webreply(f, "500 fail");
+			free(cons);
+			return;	// don't write tree, preference, result unless 'accept' or 'reject' was clicked
+		case	1:
+			result = save_decisions(prof_path, S->parse_id, ncons, cons);
+			break;
+		case	0:
+			result = save_decisions(prof_path, S->parse_id, 0, NULL);	// clear out saved decisions for this item if we reject
+			break;
+		default:
+			webreply(f, "500 invalid acceptance status");
+			return;
 	}
 
 	long long	remaining = count_remaining_trees(S->parse, cons, ncons);//S->local_dec, S->nlocal_dec);
@@ -370,15 +381,26 @@ void	web_save(FILE	*f, char	*query)
 	else webreply(f, "500 fail");
 }
 
+void	web_no_such_direction(FILE	*f, int	dir, int	unan, struct session	*S)
+{
+	html_headers(f, "Oops!");
+	fprintf(f, "<h2>There is no active item %s %s.</h2>\n", unan?" unannotated":"", (dir>1)?"after":"before", S->item_id);
+	fprintf(f, "<script>window.location=\"/private%s\"</script>\n", S->profile_id);
+	html_footers(f);
+}
+
 void	web_nav(FILE	*f, char	*query)
 {
 	assert(strlen(query) >= 6);
-	int	id = atoi(query+6);
+	int dir = 0, unan = 0;
+	char	*idptr = query + 6;
+	if(!strncmp(query, "/next?", 6))dir = +1;
+	else if(!strncmp(query, "/next_unannotated?", 18)){dir = +1;unan=1;idptr = query+18;}
+	else dir = -1;
+
+	int	id = atoi(idptr);
 	struct session	*S = get_session(id);
 	if(!S) { webreply(f, "404 no such session"); return; }
-	int dir = 0;
-	if(!strncmp(query, "/next?", 6))dir = +1;
-	else dir = -1;
 
 	char	fullpath[10240];
 	sprintf(fullpath, "%s/%s", tsdb_home_path, S->profile_id);
@@ -409,12 +431,13 @@ void	web_nav(FILE	*f, char	*query)
 		if(i < 0 || i >= items->ntuples)
 		{ 
 			tsdb_free_profile(profile);
-			webreply(f, "404 no such item");
+			web_no_such_direction(f, dir, unan, S);
+			//webreply(f, "404 no such item");
 			return;
 		}
 		new_id = items->tuples[i][item_id];
 		parse_id = get_parse_id_p(profile, new_id);
-	} while(-1 != get_t_active_p(profile, parse_id) || !iid_is_active(new_id));
+	} while((unan && -1 != get_t_active_p(profile, parse_id)) || !iid_is_active(new_id));
 
 	printf("old item id '%s' + dir %d = new item id '%s'\n", this_id, dir, new_id);
 	fprintf(f, "HTTP/1.1 302 Moved\r\n");
@@ -986,6 +1009,8 @@ void	web_callback(int	fd, void	*ptr, struct sockaddr_in	addr)
 		else if(!strncmp(path, "/session?", 9))
 			webrelativefile(f, "text/html", assets_path, "index.html");
 		else if(!strncmp(path, "/next?", 6) || !strncmp(path, "/prev?", 6))
+			web_nav(f, path);
+		else if(!strncmp(path, "/next_unannotated?", 18))
 			web_nav(f, path);
 		else if(!strncmp(path, "/update?", 8))
 			web_update(f, path+8);

@@ -32,6 +32,11 @@ function next_item()
 	window.location = "/private/next" + window.location.search;
 }
 
+function next_unannotated_item()
+{
+	window.location = "/private/next_unannotated" + window.location.search;
+}
+
 function prev_item()
 {
 	window.location = "/private/prev" + window.location.search;
@@ -39,12 +44,12 @@ function prev_item()
 
 function do_accept()
 {
-	do_save(1, next_item);
+	do_save(1, next_unannotated_item);
 }
 
 function do_reject()
 {
-	do_save(0, next_item);
+	do_save(0, next_unannotated_item);
 }
 
 function get_candidates(request_decisions)
