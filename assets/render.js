@@ -500,7 +500,7 @@ function renderable_span(text, from, to, has_bar, is_space)
 	r = document.createElement("tr");
 	b.appendChild(r);
 	cell = document.createElement("td");
-	cell.style.background = has_bar?"green":"none";
+	cell.style.background = (has_bar==1)?"green":((has_bar==2)?"red":"none");
 	//cell.style.paddingLeft = "5px";
 	r.appendChild(cell);
 

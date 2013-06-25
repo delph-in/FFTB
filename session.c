@@ -22,6 +22,18 @@
 
 char	*dqescape(char	*raw);
 
+int	verify(struct tb_edge	*e)
+{
+	assert(e->unpackings==1);
+	struct tree	*t = extract_tree(e, 0);
+	clear_slab();
+	void callback(struct tree	*t, struct dg	*d) { }
+	struct dg	*d = reconstruct_tree(t, callback);
+	free_tree(t);
+	clear_slab();
+	return d?1:0;
+}
+
 void	compute_linkage(struct parse	*P, char	*linkage, int	max, long long N)
 {
 	int i, j;
@@ -31,10 +43,11 @@ void	compute_linkage(struct parse	*P, char	*linkage, int	max, long long N)
 		//printf("edge #%d had %lld solutions out of %lld\n", e->id, e->solutions, N);
 		if(e->solutions == N && e->unpackings == 1)
 		{
+			int	reconstructable = verify(e);
 			for(j=2*e->from+1;j<2*e->to;j++)
 			{
 				assert(j < max);
-				linkage[j] = 1;
+				linkage[j] = reconstructable?1:2;
 			}
 		}
 	}
@@ -389,16 +402,18 @@ void	web_session(FILE	*f, char	*query)
 	bzero(linkage, slen*2+1);
 	compute_linkage(S->parse, linkage, slen*2+1, ntrees);
 	fprintf(f, "chunks: [");
-	int	nch = 0, l0 = 0;
+	int	nch = 0, l0 = 0, maxl = linkage[0];
 	for(i=1;i<slen*2+1;i++)
 	{
-		if(linkage[l0] != linkage[i] || i == slen*2)
+		if((linkage[l0]?1:0) != (linkage[i]?1:0) || i == slen*2)
 		{
 			if(nch++)fprintf(f, ",");
-			fprintf(f, "{from:%d,to:%d,state:%d}", l0, i, linkage[l0]);
-			//printf("%d - %d   is %d\n", l0, i, linkage[l0]);
+			fprintf(f, "{from:%d,to:%d,state:%d}", l0, i, maxl);//linkage[l0]);
+			//printf("%d - %d   is %d\n", l0, i, maxl);//linkage[l0]);
 			l0 = i;
+			maxl = 0;
 		}
+		if(linkage[i] > maxl)maxl = linkage[i];
 	}
 	fprintf(f, "],\n");
 	fprintf(f, "discriminants: [");

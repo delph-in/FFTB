@@ -1,7 +1,7 @@
 high priority:
 - allow rejection without narrowing to a single tree
-- whenever a new span becomes underlined in annotation, check that the newly-unique tree for that span is actually unifiable.
 - when reporting failed reconstruction, offer the failed rule name, argument position, path and types. also preferably show the derivation tree.
+	- when such an error occurs, force it to be hilighted and displayed to the user, instead of waiting for them to navigate to the span that would display it
 
 medium priority:
 - allow user to hide gold decisions, inferred decisions, when they aren't relevant
@@ -24,6 +24,7 @@ unknown priority:
    - should maybe be golden brown if multiple trees remain, or dark green/auto-accept if just one
 
 
++ whenever a new span becomes underlined in annotation, check that the newly-unique tree for that span is actually unifiable.
 + nothing should be saved to the profile until 'accept' or 'reject' is pressed, perhaps -- including decisions, comments, trees, whatnot
 	+ don't save comment until accept or reject is pressed
 + UI to select a gold profile for an update operation (done via itsdb illusion of integration)
