@@ -329,16 +329,18 @@ void	web_save(FILE	*f, char	*query)
 		cons[ncons] = *c; cons[ncons++].sign = c->sign?strdup(c->sign):NULL;
 	}
 	int result = save_decisions(prof_path, S->parse_id, ncons, cons);
-	free(cons);
 	if(accepted==-1)
 	{
 		if(result == 0)webreply(f, "200 ok");
 		else webreply(f, "500 fail");
+		free(cons);
 		return;	// don't write tree, preference, result unless 'accept' or 'reject' was clicked
 	}
 
-	long long	remaining = count_remaining_trees(S->parse, S->local_dec, S->nlocal_dec);
+	long long	remaining = count_remaining_trees(S->parse, cons, ncons);//S->local_dec, S->nlocal_dec);
+	printf("remaining = %lld [%d decisions used]\n", remaining, ncons);
 	if(accepted)assert(remaining == 1);
+	free(cons);
 
 	// write a record to 'tree'
 
@@ -510,7 +512,7 @@ void	web_slash(FILE	*f, char	*path)
 		{ webreply(f, "500 bad path"); return; }
 	char	fullpath[10240];
 	sprintf(fullpath, "%s%s", tsdb_home_path, path);
-	int i,n = scandir(fullpath, &names, filter, alphasort);
+	int i,n = scandir(fullpath, &names, (int(*)(struct dirent*))filter, alphasort);
 	if(n < 0) { webreply(f, "500 unable to read TSDB home directory"); return; }
 
 	if(is_profile)
@@ -526,10 +528,12 @@ void	web_slash(FILE	*f, char	*path)
 		int	item_id = get_field(items, "i-id", "integer");
 
 		char	title[10240];
-		sprintf(title, "ACE Treebanker: %s", path);
+		sprintf(title, "FFTB: %s", path);
 		html_headers(f, title);
 		char	*cgi = cgiencode(path);
-		fprintf(f, "<a href=\"/private/update?%s\">Automatic Update</a>  | <a href=\"/private/exit\">Exit</a><br/>\n", cgi);
+		if(gold_tsdb_profile)
+			fprintf(f, "<a href=\"/private/update?%s\">Automatic Update</a>  | ", cgi);
+		fprintf(f, "<a href=\"/private/exit\">Exit</a><br/>\n");
 		fprintf(f, "<table>\n");
 		for(i=0;i<items->ntuples;i++)
 		{
@@ -551,7 +555,7 @@ void	web_slash(FILE	*f, char	*path)
 	}
 	else
 	{
-		html_headers(f, "ACE Treebanker Home");
+		html_headers(f, "FFTB Home");
 		fprintf(f, "<a href=\"/private/exit\">[Exit Treebanker]</a><hr/>\n");
 		for(i=0;i<n;i++)
 		{
@@ -777,6 +781,28 @@ freeup2:
 	return result;
 }
 
+char	*get_gold_profile_path(char	*profile_id)
+{
+	char	*goldpath = NULL;
+	/*if(path)
+	{
+		if(!strcmp(path, "/trec-test/"))
+			goldpath = "/gold/erg/trec/";
+		if(!strcmp(path, "/ws01-test/"))
+			goldpath = "/gold/erg/ws01/";
+		if(!strcmp(path, "/wsj/rwsj00a-full/"))
+			goldpath = "/wsj/rwsj00a-topn/";
+	}*/
+
+	if(!gold_tsdb_profile && !goldpath)return NULL;
+
+	char	goldfullpath[10240];
+	if(gold_tsdb_profile)strcpy(goldfullpath, gold_tsdb_profile);
+	else sprintf(goldfullpath, "%s%s", tsdb_home_path, goldpath);
+
+	return strdup(goldfullpath);
+}
+
 void	web_update(FILE	*f, char	*path)
 {
 	int	is_profile = 0;
@@ -799,7 +825,7 @@ void	web_update(FILE	*f, char	*path)
 		strcpy(fullpath, only_tsdb_profile);
 	}
 	struct dirent	**names;
-	int i,n = scandir(fullpath, &names, filter, alphasort);
+	int i,n = scandir(fullpath, &names, (int(*)(struct dirent*))filter, alphasort);
 	if(n < 0) { webreply(f, "500 unable to read TSDB home directory"); return; }
 	for(i=0;i<n;i++)
 		free(names[i]);
@@ -807,7 +833,7 @@ void	web_update(FILE	*f, char	*path)
 
 	if(!is_profile) { webreply(f, "500 unable to update a directory; specify a profile."); return; }
 
-	char	*goldpath = NULL;
+	/*char	*goldpath = NULL;
 	if(path)
 	{
 		if(!strcmp(path, "/trec-test/"))
@@ -822,11 +848,14 @@ void	web_update(FILE	*f, char	*path)
 
 	char	goldfullpath[10240];
 	if(gold_tsdb_profile)strcpy(goldfullpath, gold_tsdb_profile);
-	else sprintf(goldfullpath, "%s%s", tsdb_home_path, goldpath);
+	else sprintf(goldfullpath, "%s%s", tsdb_home_path, goldpath);*/
+	char	*goldfullpath = get_gold_profile_path(path);
+	if(!goldfullpath) { webreply(f, "500 I don't know the gold profile for that path."); return; }
 
 	struct tsdb	*profile = cached_get_profile_and_pin(fullpath);
 	if(!profile) { webreply(f, "500 unable to read TSDB profile"); return; }
 	struct tsdb	*goldprof = cached_get_profile_and_pin(goldfullpath);
+	free(goldfullpath); goldfullpath = NULL;
 	if(!goldprof) { webreply(f, "500 unable to read gold TSDB profile"); return; }
 
 	struct relation	*items = get_relation(profile, "item");
@@ -865,9 +894,10 @@ void	web_update(FILE	*f, char	*path)
 	if(path)
 	{
 		char	title[10240];
-		sprintf(title, "ACE Treebanker: %s", path);
+		sprintf(title, "FFTB: %s", path);
 		html_headers(f, title);
 		cgi = cgiencode(path);
+		fprintf(f, "Automatically updating items in %s <a href=\"/private/exit\">Exit</a><br/>\n", path);
 		fprintf(f, "<span style='background: lightgreen;'>This profile has an active tree, not updating</span>\n");
 		fprintf(f, "<span style='background: red;'>Unexpected error</span>\n");
 		fprintf(f, "<span style='background: #aaa;'>No parses now, no active gold exists</span>\n");
@@ -884,6 +914,7 @@ void	web_update(FILE	*f, char	*path)
 	for(i=0;i<items->ntuples;i++)
 	{
 		char	*iid = items->tuples[i][item_id];
+		if(!iid_is_active(iid))continue;
 		char	*input = items->tuples[i][item_input];
 		char	*parse_id = get_pid_by_id(profile, iid);
 		char	*color = "red";
