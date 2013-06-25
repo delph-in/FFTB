@@ -1,10 +1,10 @@
 high priority:
-- don't save comment until accept or reject is pressed
 - allow rejection without narrowing to a single tree
 - whenever a new span becomes underlined in annotation, check that the newly-unique tree for that span is actually unifiable.
 - when reporting failed reconstruction, offer the failed rule name, argument position, path and types. also preferably show the derivation tree.
 
 medium priority:
+- allow user to hide gold decisions, inferred decisions, when they aren't relevant
 - add reset button -- remove all new decisions, turn all gold decisions to "off", set t-active=-1, ?clear comment?
 - token avm strings in derivations need real IDs before them (slightly hard because 'struct tree' doesn't record those...)
 - when rejecting an item, don't save the decisions leading up to that
@@ -25,6 +25,7 @@ unknown priority:
 
 
 + nothing should be saved to the profile until 'accept' or 'reject' is pressed, perhaps -- including decisions, comments, trees, whatnot
+	+ don't save comment until accept or reject is pressed
 + UI to select a gold profile for an update operation (done via itsdb illusion of integration)
 + save decisions; preferably in real-time as they are made, so you can return to your session from another browser or after the server is reset
 	[ currently done in real-time, but oe suggests only on 'accept'/'reject'. ]

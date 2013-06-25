@@ -7,6 +7,7 @@ var dspan = "";
 
 function do_save(accepted, and_then)
 {
+	if(accepted!=-1)save_comment()
 	var xr = new XMLHttpRequest();
 	var sid = window.location.search;
 	xr.open("POST", "/save" + sid + "&accepted=" + accepted, true);
