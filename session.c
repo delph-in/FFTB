@@ -22,19 +22,39 @@
 
 char	*dqescape(char	*raw);
 
-int	verify(struct tb_edge	*e)
+struct tree	*duplicate_tree(struct tree	*tin)
+{
+	struct tree	*tout = malloc(sizeof(*tin));
+	int i;
+	*tout = *tin;
+	tout->label = tin->label?strdup(tin->label):NULL;
+	tout->shortlabel = tin->shortlabel?strdup(tin->shortlabel):NULL;
+	tout->tokens = malloc(sizeof(char*)*tin->ntokens);
+	for(i=0;i<tin->ntokens;i++)tout->tokens[i] = strdup(tin->tokens[i]);
+	tout->daughters = malloc(sizeof(struct tree*)*tin->ndaughters);
+	for(i=0;i<tin->ndaughters;i++)
+	{
+		tout->daughters[i] = duplicate_tree(tin->daughters[i]);
+		tout->daughters[i]->parent = tout;
+	}
+	tout->lexhead = NULL;
+	return tout;
+}
+
+int	verify(struct tb_edge	*e, struct reconstruction_error	*error)
 {
 	assert(e->unpackings==1);
 	struct tree	*t = extract_tree(e, 0);
 	clear_slab();
 	void callback(struct tree	*t, struct dg	*d) { }
-	struct dg	*d = reconstruct_tree(t, callback);
+	struct dg	*d = reconstruct_tree_or_error(t, callback, error);
+	if(!d)error->node = duplicate_tree(error->node);
 	free_tree(t);
 	clear_slab();
 	return d?1:0;
 }
 
-void	compute_linkage(struct parse	*P, char	*linkage, int	max, long long N)
+void	compute_forcings(struct parse	*P, struct tb_edge	**forced_edge, int	max, long long N)
 {
 	int i, j;
 	for(i=0;i<P->nedges;i++)
@@ -43,11 +63,13 @@ void	compute_linkage(struct parse	*P, char	*linkage, int	max, long long N)
 		//printf("edge #%d had %lld solutions out of %lld\n", e->id, e->solutions, N);
 		if(e->solutions == N && e->unpackings == 1)
 		{
-			int	reconstructable = verify(e);
 			for(j=2*e->from+1;j<2*e->to;j++)
 			{
 				assert(j < max);
-				linkage[j] = reconstructable?1:2;
+				if(!forced_edge[j])
+					forced_edge[j] = e;
+				else if(e->from < forced_edge[j]->from || e->to > forced_edge[j]->to)
+					forced_edge[j] = e;
 			}
 		}
 	}
@@ -236,13 +258,13 @@ void	fsend_tree(FILE	*f, struct tree	*t)
 	fprintf(f, "]}");
 }
 
-int	send_tree(FILE	*f, struct tb_edge	*e, int	unused)
+int	send_tree(FILE	*f, struct tb_edge	*e, struct reconstruction_error	*error)
 {
 	struct tree	*t = extract_tree(e, 0);
 	assert(t != NULL);
 	void callback(struct tree	*t, struct dg	*d)
 		{ t->shortlabel = label_dag(d, "?"); }
-	struct dg	*result = reconstruct_tree(t, callback);
+	struct dg	*result = reconstruct_tree_or_error(t, callback, error);
 	if(result != NULL)
 		fsend_tree(f, t);
 	free_tree(t);
@@ -398,24 +420,78 @@ void	web_session(FILE	*f, char	*query)
 		if(t->to >= slen)slen = t->to+1;
 	}
 	fprintf(f, "],\n");
-	char	linkage[slen*2+1];
-	bzero(linkage, slen*2+1);
-	compute_linkage(S->parse, linkage, slen*2+1, ntrees);
+	struct tb_edge	*forced_edges[slen*2+1];
+	bzero(forced_edges, sizeof(struct tb_edge*)*(slen*2+1));
+	compute_forcings(S->parse, forced_edges, slen*2+1, ntrees);
 	fprintf(f, "chunks: [");
-	int	nch = 0, l0 = 0, maxl = linkage[0];
+	int	nch = 0, l0 = 0, have_error = 0;
+	struct reconstruction_error	first_error;
 	for(i=1;i<slen*2+1;i++)
 	{
-		if((linkage[l0]?1:0) != (linkage[i]?1:0) || i == slen*2)
+		if(forced_edges[l0] != forced_edges[i] || i == slen*2)
 		{
 			if(nch++)fprintf(f, ",");
-			fprintf(f, "{from:%d,to:%d,state:%d}", l0, i, maxl);//linkage[l0]);
-			//printf("%d - %d   is %d\n", l0, i, maxl);//linkage[l0]);
+			int status = forced_edges[l0]?1:0;
+			struct reconstruction_error	error;
+			int valid = status && verify(forced_edges[l0], &error);
+			if(status && !valid)
+			{
+				status = 2;
+				// inspect error!
+				if(!have_error)
+				{
+					first_error = error;
+					have_error = 1;
+				}
+				else
+				{
+					if(error.comment)free(error.comment);
+					if(error.path)free(error.path);
+					if(error.node)free_tree(error.node);
+				}
+			}
+			fprintf(f, "{from:%d,to:%d,state:%d}", l0, i, status);
+			//printf("%d - %d   is %d\n", l0, i, status);
 			l0 = i;
-			maxl = 0;
 		}
-		if(linkage[i] > maxl)maxl = linkage[i];
 	}
 	fprintf(f, "],\n");
+	if(have_error)
+	{
+		char	*lesc = dqescape(first_error.node->label);
+		fprintf(f, "recons_error: {");
+		switch(first_error.type)
+		{
+			case	reconsNoSuchLexeme:
+				fprintf(f, "type:\"No such lexeme as %s\",", lesc);
+				break;
+			case	reconsNoSuchRule:
+				fprintf(f, "type:\"No such rule as %s\",", lesc);
+				break;
+			case	reconsIncompatibleToken:
+				fprintf(f, "type:\"Failed to unify token list into lexeme %s.\",", lesc);
+				break;
+			case	reconsRuleGLB:
+				fprintf(f, "type:\"GLB failed for daughter %d [zero-based] into rule %s.\",", first_error.daughter, lesc);
+				send_escaped("path", first_error.path);
+				send_escaped("type1", first_error.type1);
+				send_escaped("type2", first_error.type2);
+				break;
+			case	reconsRuleCycle:
+				fprintf(f, "type:\"Cycle detected with rule %s.\",", lesc);
+				break;
+			default: fprintf(f, "type:\"Unknown reconstruction error\",");	break;
+		}
+		if(first_error.type == reconsRuleGLB)fprintf(f, "has_glb: 1,");
+		else fprintf(f, "has_glb: 0,");
+		send_escaped("comment", first_error.comment?:"");
+		fprintf(f, "node:{from:%d, to:%d, label:\"%s\"}}, ",
+			first_error.node->tfrom, first_error.node->tto, lesc);
+		if(first_error.comment) free(first_error.comment);
+		if(first_error.path) free(first_error.path);
+		if(first_error.node) free_tree(first_error.node);
+		free(lesc);
+	}
 	fprintf(f, "discriminants: [");
 	if(have_span)
 		find_discriminants(f, S->parse, from, to, ntrees);
@@ -466,10 +542,11 @@ void	web_session(FILE	*f, char	*query)
 		if(i<S->parse->nedges)
 		{
 			fprintf(f, "trees: [");
-			int res = send_tree(f, S->parse->edges[i], 0);
+			struct reconstruction_error	error;
+			int res = send_tree(f, S->parse->edges[i], &error);
 			fprintf(f, "],");
 			if(res != 0)
-				fprintf(f, "error: 'Reconstruction failed on that tree.',");
+				fprintf(f, "error: 'Reconstruction failed on that tree.',");	// shouldn't happen unless we're also sending a detailed description of the error with the chunking code
 		}
 		else fprintf(f, "trees: [],");
 	}
@@ -479,10 +556,11 @@ void	web_session(FILE	*f, char	*query)
 		for(i=0;i<S->parse->nroots;i++)
 			if(has_unpacking(S->parse->roots[i]))break;
 		assert(i < S->parse->nroots);
-		int res = send_tree(f, S->parse->roots[i], 0);
+		struct reconstruction_error	error;
+		int res = send_tree(f, S->parse->roots[i], &error);
 		fprintf(f, "],");
 		if(res != 0)
-			fprintf(f, "error: 'Reconstruction failed on that tree.',");
+			fprintf(f, "error: 'Reconstruction failed on that tree.',");	// shouldn't happen unless we're also sending a detailed description of the error with the chunking code
 	}
 	else fprintf(f, "trees: [],\n");
 	fprintf(f, "end:0}\n");

@@ -191,13 +191,9 @@ function show_trees()
 
 	var host = document.getElementById("disc-scroller");
 
-	if(message.ntrees == 1 && hilight_set.length == 0)
-	{
-		accept_reject = document.createElement("div")
-		accept_reject.style.textAlign = "right";
-		accept_reject.innerHTML="<a href='javascript:do_accept();'>accept</a> | <a href='javascript:do_reject()'>reject</a>"
-		host.appendChild(accept_reject);
-	}
+	if(message.ntrees == 1 && hilight_set.length == 0 && !message.recons_error)
+		document.getElementById("accept_button").innerHTML = "<a href='javascript:do_accept();'>accept</a>"
+	else document.getElementById("accept_button").innerHTML = "<span style='color:gray;'>accept</span>"
 
 	var availWidth = 400, availHeight = 400;
 
@@ -210,6 +206,25 @@ function show_trees()
 	else
 	{
 		if(svg.parentNode)svg.parentNode.removeChild(svg);
+		if(message.recons_error)
+		{
+			var error_div = document.createElement("div");
+			var E = message.recons_error;
+			var html = E.type + "<br/>";
+			if(E.has_glb)
+			{
+				html += "Failure path inside daughter: " + E.path + "<br/>"
+				html += "Types involved: " + E.type1 + "  (incompatible with) " + E.type2 + "<br/>"
+			}
+			html += "<br/>"
+			html += "<br/>"
+			html += "Label at unbuildable tree node: " + E.node.label + "<br/>"
+			html += "Span of unbuildable tree: " + E.node.from + " to " + E.node.to + "<br/>"
+			hilight_dec(E.node.from, E.node.to);
+			error_div.innerHTML = html;
+			host.appendChild(error_div);
+		}
+		else unhilight_dec();
 		if(message.error)
 		{
 			host.appendChild(document.createTextNode(message.error));
@@ -870,6 +885,8 @@ function show_discriminants()
 
 	div.innerHTML = "";	// faster
 	//while(div.firstChild)div.removeChild(div.firstChild);
+
+	if(message.recons_error)return;
 
 	var showyield = (dspan == "" || (dspanto-dspanfrom < 2))?1:0;
 

@@ -1,18 +1,21 @@
 high priority:
-- allow rejection without narrowing to a single tree
-- when reporting failed reconstruction, offer the failed rule name, argument position, path and types. also preferably show the derivation tree.
-	- when such an error occurs, force it to be hilighted and displayed to the user, instead of waiting for them to navigate to the span that would display it
+- check reconstructed edges for root condition! currently we allow the user to "accept" a tree whose AVM is not compatible with a root condition. (a subsuming edge was root, at least).
+	- just now, it seems that using the default list of roots stored in the grammar image and offering a commandline option, the way ACE does, isn't so bad.  users should be aware, though.
+	- idiom test too.
+- write inferred discriminants
+- on update, line up gold discriminants with current ones and set values where matches exist (instead of assuming they all are relevant still)
 
 medium priority:
+- show MRS before accepting
 - allow user to hide gold decisions, inferred decisions, when they aren't relevant
 - add reset button -- remove all new decisions, turn all gold decisions to "off", set t-active=-1, ?clear comment?
 - token avm strings in derivations need real IDs before them (slightly hard because 'struct tree' doesn't record those...)
-- when rejecting an item, don't save the decisions leading up to that
 - in case a span is selected and no discriminants are relevant *and* a unique tree is not available [yet] (so nothing is displayed), tell dan what we *do* know about that span -- one of:
 	- this can't be a constituent
 	- this *will* be a constituent, and here's the unary chain for it -- and maybe more of the partially determined tree?
 
 lower priority:
+- show the derivation tree involved in reconstruction failures
 - allow acceptance of all the remaining trees...?
 - don't clobber results file ; if gold selected tree is not present, append it. otherwise noop.
 	- when writing to result files with 500 trees in them, updates get really slow.  compute the whole new result file in memory and then write it out once, instead of per item?
@@ -22,36 +25,6 @@ unknown priority:
 - when multiple active gold trees exist, color coding becomes murky...
    - currently I compare to the first active tree and either show dark green or light blue.
    - should maybe be golden brown if multiple trees remain, or dark green/auto-accept if just one
-
-
-+ whenever a new span becomes underlined in annotation, check that the newly-unique tree for that span is actually unifiable.
-+ nothing should be saved to the profile until 'accept' or 'reject' is pressed, perhaps -- including decisions, comments, trees, whatnot
-	+ don't save comment until accept or reject is pressed
-+ UI to select a gold profile for an update operation (done via itsdb illusion of integration)
-+ save decisions; preferably in real-time as they are made, so you can return to your session from another browser or after the server is reset
-	[ currently done in real-time, but oe suggests only on 'accept'/'reject'. ]
-+ (fixed now:) updating from gold -- when update fails, the gold discriminants aren't actually showing up when we go in to manually fix it -- (reason was: gold path wasn't being taken from --gold for /parse? even though it was for auto-update)
-+ when --items is passed and an update is requested, pay attention
-+ add Exit button to auto update page
-
-+ stephan wants -1's for all integer fields
-	+ also got the dates
-
-+ commandline revision
-	--browser
-	--items
-	--gold
-		--auto
-+ exit button
-+ comment editor
-+ implement behavior of --items
-
-+ write nothing instead of 0 when skipping an item
-	[ ] should i maybe write a -1 to 't-active' when there is no tree record present, if there is a parse record? ... in profiles coming from stephan, if he cares about having a record there it will already be there. (shrug)
-	ideal: UI shows status of each item, both in annotator view and list view:  accepted (>=1 t-active), rejected (0 t-active), unannotated (-1 t-active)
-	        + status display done
-		+ status should only be changed by explicit action... e.g. changing a discriminant can take you from accepted/rejected to unannotated, or clicking accept/reject can take you from unannotated to accepted or rejected
-		+ next/prev should only visit unannotated items
 
 strange bug:
 	ws01 item 10030770 has 2 remaining trees (with all gold on), but no discriminants -- and all the lexemes are unambiguous.
@@ -82,6 +55,27 @@ improvements for special use cases:
 
 
 done:
++ allow rejection without narrowing to a single tree
++ when reporting failed reconstruction, offer the failed rule name, argument position, path and types. also preferably show the derivation tree.
+	+ when such an error occurs, force it to be hilighted and displayed to the user, instead of waiting for them to navigate to the span that would display it
++ whenever a new span becomes underlined in annotation, check that the newly-unique tree for that span is actually unifiable.
++ nothing should be saved to the profile until 'accept' or 'reject' is pressed, perhaps -- including decisions, comments, trees, whatnot
+	+ don't save comment until accept or reject is pressed
+	+ when rejecting an item, don't save the decisions leading up to that
++ UI to select a gold profile for an update operation (done via itsdb illusion of integration)
++ save decisions; preferably in real-time as they are made, so you can return to your session from another browser or after the server is reset
+	[ currently done in real-time, but oe suggests only on 'accept'/'reject'. ]
++ (fixed now:) updating from gold -- when update fails, the gold discriminants aren't actually showing up when we go in to manually fix it -- (reason was: gold path wasn't being taken from --gold for /parse? even though it was for auto-update)
++ when --items is passed and an update is requested, pay attention
++ add Exit button to auto update page
++ stephan wants -1's for all integer fields
+	+ also got the dates
++ commandline revision: --browser --items --gold --auto
++ exit button
++ comment editor
++ implement behavior of --items
++ write nothing instead of 0 when skipping an item
++ UI shows status of each item, both in annotator view and list view:  accepted (>=1 t-active), rejected (0 t-active), unannotated (-1 t-active)
 	+ when saving, write 'decision', 'preference', 'tree' and 'result', including the derivation tree and the mrs of the preferred result
 	+ keep a cache of TSDB profiles; much faster than loading everytime we change sentences
 	+ apply gold inferred discriminants in addition to gold manual discriminants
