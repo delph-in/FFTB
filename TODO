@@ -7,6 +7,7 @@ high priority:
 
 medium priority:
 - show MRS before accepting
+- verify local unifiability of twigs before offering them
 - allow user to hide gold decisions, inferred decisions, when they aren't relevant
 - add reset button -- remove all new decisions, turn all gold decisions to "off", set t-active=-1, ?clear comment?
 - token avm strings in derivations need real IDs before them (slightly hard because 'struct tree' doesn't record those...)
@@ -15,6 +16,8 @@ medium priority:
 	- this *will* be a constituent, and here's the unary chain for it -- and maybe more of the partially determined tree?
 
 lower priority:
+- show old-style discriminants in addition to twigs
+- allow rejection of discriminants
 - show the derivation tree involved in reconstruction failures
 - allow acceptance of all the remaining trees...?
 - don't clobber results file ; if gold selected tree is not present, append it. otherwise noop.
