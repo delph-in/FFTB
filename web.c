@@ -202,7 +202,10 @@ int	len_of_derivation(struct tree	*t)
 	for(i=0;i<t->ndaughters;i++)
 		len += len_of_derivation(t->daughters[i]);
 	for(i=0;i<t->ntokens;i++)
+	{
+		len += 10;
 		len += strlen(t->tokens[i]);
+	}
 	return len;
 }
 
@@ -238,7 +241,7 @@ char	*build_derivation(char	*str, struct tree	*t)
 		for(i=0;i<t->ntokens;i++)
 		{
 			char	*e = dqescape(t->tokens[i]);
-			str += sprintf(str, " 0 \"%s\"", e);
+			str += sprintf(str, " %d \"%s\"", t->tokenids[i], e);
 			free(e);
 		}
 	}
@@ -535,7 +538,7 @@ void	web_slash(FILE	*f, char	*path)
 		{ webreply(f, "500 bad path"); return; }
 	char	fullpath[10240];
 	sprintf(fullpath, "%s%s", tsdb_home_path, path);
-	int i,n = scandir(fullpath, &names, (int(*)(struct dirent*))filter, alphasort);
+	int i,n = scandir(fullpath, &names, (int(*)(const struct dirent*))filter, alphasort);
 	if(n < 0) { webreply(f, "500 unable to read TSDB home directory"); return; }
 
 	if(is_profile)
@@ -622,6 +625,7 @@ int	count_timer = -1;
 long long	update_item(struct tsdb	*gold, struct tsdb	*prof, char	*iid, char	**color)
 {
 	int result = 0;
+	int	success = 0;
 	// plan:
 	//   read the gold decisions from 'gold'
 	//   read the forest from 'prof'
@@ -783,6 +787,7 @@ long long	update_item(struct tsdb	*gold, struct tsdb	*prof, char	*iid, char	**co
 		if(!result)result = write_tree(prof->path, prof_pid, "1", "1", getenv("LOGNAME"), comment);
 		if(!result)result = save_tree_for_item(prof->path, prof_pid, t);
 		printf(" [ %s ]", result?"fail":"success");
+		if(!result)success = 1;
 	}
 	else
 	{
@@ -801,6 +806,11 @@ freeup1:
 		free(golddecs[i].sign);
 	if(golddecs)free(golddecs);
 freeup2:
+	if(prof && prof_pid && !success)
+	{
+		char	*comment = (gold && gold_pid)?get_t_comment_p(gold, gold_pid):"";
+		write_tree(prof->path, prof_pid, "1", "-1", getenv("LOGNAME"), comment);
+	}
 	return result;
 }
 
@@ -848,7 +858,7 @@ void	web_update(FILE	*f, char	*path)
 		strcpy(fullpath, only_tsdb_profile);
 	}
 	struct dirent	**names;
-	int i,n = scandir(fullpath, &names, (int(*)(struct dirent*))filter, alphasort);
+	int i,n = scandir(fullpath, &names, (int(*)(const struct dirent*))filter, alphasort);
 	if(n < 0) { webreply(f, "500 unable to read TSDB home directory"); return; }
 	for(i=0;i<n;i++)
 		free(names[i]);
@@ -1045,7 +1055,8 @@ launch_browser(char	*browsername, char	*url)
 #else
 	sprintf(command, "%s %s &", browsername, url);
 #endif
-	system(command);
+	int result = system(command);
+	if(result != 0)fprintf(stderr, "unable to launch browser\n", browsername);
 }
 
 char	*grammar_roots = "root_strict root_inffrag root_informal root_frag";	// used when invoking ACE online

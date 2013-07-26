@@ -10,7 +10,6 @@ medium priority:
 - verify local unifiability of twigs before offering them
 - allow user to hide gold decisions, inferred decisions, when they aren't relevant
 - add reset button -- remove all new decisions, turn all gold decisions to "off", set t-active=-1, ?clear comment?
-- token avm strings in derivations need real IDs before them (slightly hard because 'struct tree' doesn't record those...)
 - in case a span is selected and no discriminants are relevant *and* a unique tree is not available [yet] (so nothing is displayed), tell dan what we *do* know about that span -- one of:
 	- this can't be a constituent
 	- this *will* be a constituent, and here's the unary chain for it -- and maybe more of the partially determined tree?
@@ -58,6 +57,8 @@ improvements for special use cases:
 
 
 done:
++ on update, write t-active = -1 explicitly for all items that fail to update
++ token avm strings in derivations need real IDs before them (slightly hard because 'struct tree' doesn't record those...)
 + allow rejection without narrowing to a single tree
 + when reporting failed reconstruction, offer the failed rule name, argument position, path and types. also preferably show the derivation tree.
 	+ when such an error occurs, force it to be hilighted and displayed to the user, instead of waiting for them to navigate to the span that would display it

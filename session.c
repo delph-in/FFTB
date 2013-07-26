@@ -215,8 +215,13 @@ struct tree	*extract_tree(struct tb_edge	*e, int	ucdepth)
 			orth->ntokens = lex->stemlen;
 			assert(orth->ntokens == e->ntokens);
 			orth->tokens = calloc(sizeof(char*),orth->ntokens);
+			orth->tokenids = calloc(sizeof(int),orth->ntokens);
 			int j;
-			for(j=0;j<orth->ntokens;j++)orth->tokens[j] = strdup(e->tokens[j]->avmstr);
+			for(j=0;j<orth->ntokens;j++)
+			{
+				orth->tokenids[j] = e->tokens[j]->id;
+				orth->tokens[j] = strdup(e->tokens[j]->avmstr);
+			}
 			orth->cfrom = orth->cto = -1;
 		}
 		else
