@@ -29,6 +29,8 @@ struct tree	*duplicate_tree(struct tree	*tin)
 	*tout = *tin;
 	tout->label = tin->label?strdup(tin->label):NULL;
 	tout->shortlabel = tin->shortlabel?strdup(tin->shortlabel):NULL;
+	tout->tokenids = malloc(sizeof(int)*tin->ntokens);
+	memcpy(tout->tokenids, tin->tokenids, sizeof(int)*tin->ntokens);
 	tout->tokens = malloc(sizeof(char*)*tin->ntokens);
 	for(i=0;i<tin->ntokens;i++)tout->tokens[i] = strdup(tin->tokens[i]);
 	tout->daughters = malloc(sizeof(struct tree*)*tin->ndaughters);
