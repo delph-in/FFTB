@@ -214,7 +214,13 @@ char	*dqescape(char *s)
 	char *s2 = malloc(strlen(s)*2+1), *p = s2;
 	while(*s)
 	{
-		if(*s == '\'' || *s == '\\' || *s == '"')*p++='\\';
+		if(*s=='\b') { *p++ = '\\'; *p++ = 'b'; s++; continue; }
+		if(*s=='\f') { *p++ = '\\'; *p++ = 'f'; s++; continue; }
+		if(*s=='\n') { *p++ = '\\'; *p++ = 'n'; s++; continue; }
+		if(*s=='\r') { *p++ = '\\'; *p++ = 'r'; s++; continue; }
+		if(*s=='\t') { *p++ = '\\'; *p++ = 't'; s++; continue; }
+		// specs for json apparently say you should escape '/'...
+		if(*s == '\'' || *s == '\\' || *s == '"' || *s=='/')*p++='\\';
 		*p++ = *s++;
 	}
 	*p++ = 0;
