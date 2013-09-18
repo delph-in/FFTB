@@ -558,6 +558,106 @@ int	load_edge_from_tsdb(struct parse	*P, struct hash	*id_to_edge, int	id, char	*
 	return 0;
 }
 
+// rewrite S->input and the cfrom/cto of S->parse->tokens to make the tokens look like they came from a space-separated input string
+/* actual 'input' from the profile looks like this:
+wisteria01	0	0	1.	1.	CD	(NP(NP*	***
+wisteria01	0	1	The	The	NNP	*	***
+wisteria01	0	2	Singular	Singular	NNP	*	***
+wisteria01	0	3	Experience	Experience	NN	*)	***
+wisteria01	0	4	of	of	IN	(PP*	***
+wisteria01	0	5	Mr.	Mr.	NNP	(NP*	***
+wisteria01	0	6	John	John	NNP	*	***
+wisteria01	0	7	Scott	Scott	NNP	*	***
+wisteria01	0	8	Eccles	Eccles	NNP	*)))	***
+*/
+
+struct connl_token
+{
+	int	id;
+	int	cfrom, cto;	// relative to rewritten string
+	wchar_t	*text;
+};
+struct connl_token	*get_connl_tokens(char	*input, int	*N)
+{
+	int	n = 0;
+	struct connl_token	*toks = NULL;
+	char	*nltmp, *tabtmp, *line, *field;
+	for(line = strtok_r(input, "\n", &nltmp); line ; line = strtok_r(NULL, "\n", &nltmp))
+	{
+		n++;
+		toks = realloc(toks, sizeof(struct connl_token)*n);
+		struct connl_token	*T = &toks[n-1];
+		char	*chapter = strtok_r(line, "\t", &tabtmp);
+		char	*itemid = strtok_r(NULL, "\t", &tabtmp);
+		char	*tokid = strtok_r(NULL, "\t", &tabtmp);
+		char	*toktext = strtok_r(NULL, "\t", &tabtmp);
+		assert(toktext != NULL);
+		T->id = atoi(tokid);
+		T->text = towide(toktext);
+	}
+	*N = n;
+	return toks;
+}
+
+wchar_t	*connl_tokens_to_string(struct connl_token	*toks, int	n)
+{
+	int i, ilen = 0;
+	for(i=0;i<n;i++)
+	{
+		if(i)ilen++;
+		toks[i].cfrom = ilen;
+		ilen += wcslen(toks[i].text);
+		toks[i].cto = ilen;
+	}
+	ilen++;
+	wchar_t	*text = calloc(sizeof(wchar_t), ilen), *tp;
+	tp = text;
+	for(i=0;i<n;i++)
+	{
+		if(i)*tp++ = L' ';
+		tp += swprintf(tp, ilen, L"%S", toks[i].text);
+	}
+	*tp++ = 0;
+	return text;
+}
+
+char	*simplify_connl_input(char	*input)
+{
+	int	n;
+	struct connl_token	*ct = get_connl_tokens(input, &n);
+	wchar_t	*wide = connl_tokens_to_string(ct, n);
+	char	*returnme = tombs(wide);
+	free(wide);
+	return returnme;
+}
+
+int	transform_connl(struct connl_token	*ct, int	n, int	x)
+{
+	int	token_id = x / 100;
+	int	cpos = x % 100;
+	printf("converting %d [ tok %d, char %d ]\n", x, token_id, cpos);
+	int j;
+	for(j=0;j<n;j++)
+		if(ct[j].id == token_id)
+			return ct[j].cfrom + cpos;
+	printf(" ... couldn't find that token.\n");
+	assert(!"not reached");
+}
+
+int use_connl_tokenization = 0;
+void	do_connl_tokenization(struct session	*S)
+{
+	int	i, n;
+	struct connl_token	*ct = get_connl_tokens(S->input, &n);
+	S->input = tombs(connl_tokens_to_string(ct, n));
+	for(i=0;i<S->parse->ntokens;i++)
+	{
+		struct tb_token	*t = S->parse->tokens[i];
+		t->cfrom = transform_connl(ct, n, t->cfrom);
+		t->cto = transform_connl(ct, n, t->cto);
+	}
+}
+
 struct tb_token	*parse_find_token(struct parse	*P, int	tid)
 {
 	int i;
@@ -934,6 +1034,8 @@ void	web_parse(FILE	*f, char	*cgiargs)
 	S->id = id_allocator++;
 	S->pref_tree = goldpref_tree;
 	S->parse_id = pid?strdup(pid):NULL;
+	if(use_connl_tokenization)
+		do_connl_tokenization(S);
 
 	S->nlocal_dec = nprof_dec;
 	S->local_dec = prof_dec;

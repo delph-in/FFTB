@@ -32,6 +32,8 @@ char	*tsdb_home_path = "/home/sweagles/logon/lingo/lkb/src/tsdb/home/";
 
 char	*only_tsdb_profile = NULL, *gold_tsdb_profile = NULL;
 
+extern int use_connl_tokenization;
+
 void	html_headers(FILE	*f, char	*title)
 {
 	http_headers(f, "text/html");
@@ -577,8 +579,14 @@ void	web_slash(FILE	*f, char	*path)
 			char	*parse_id = get_parse_id_p(profile, iid);
 			int	t_active = get_t_active_p(profile, parse_id);
 			fprintf(f, "<td></td><td style='background: %s;'>&nbsp;</td><td></td>\n", status_color(t_active));
+			if(use_connl_tokenization)
+			{
+				char	*simplify_connl_input(char	*input);
+				input = simplify_connl_input(input);
+			}
 			fprintf(f, "<td>%s</td></tr>\n",
 				input);
+			if(use_connl_tokenization)free(input);
 		}
 		free(cgi);
 		fprintf(f, "</table>\n");
@@ -1073,7 +1081,8 @@ struct option long_options[] = {
 	{"auto", no_argument, NULL, 'a'},
 	{"items", required_argument, NULL, 'i'},
 	{"browser", optional_argument, NULL, 'b'},
-	{"webdir", required_argument, NULL, 'w'}
+	{"webdir", required_argument, NULL, 'w'},
+	{"connl-tokenization", no_argument, &use_connl_tokenization, 1}
 	};
 
 struct hash	*item_list_hash = NULL;
@@ -1118,7 +1127,8 @@ main(int	argc, char	*argv[])
 		case	'i': hash_item_list(optarg); break;
 		case	'w': assets_path = optarg; break;
 		case	'V': case	'h':	usage(argv[0],0);
-		default: usage(argv[0],-1);
+		case	0:	continue;
+		case	'?': usage(argv[0],-1);
 	}
 	if(argc != optind+1)usage(argv[0],-1);
 
