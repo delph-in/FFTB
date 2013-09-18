@@ -191,7 +191,8 @@ function render_tree_popups(t, isleft, isright, istop)
 function make_var_str(m,idx)
 {
 	var v = m.vars[idx]
-	return v.type + idx
+	if(typeof(v) == typeof(""))return v
+	else return v.type + idx
 }
 
 function show_mrs()
@@ -202,8 +203,20 @@ function show_mrs()
 	var html = ""
 	html += "TOP: " + make_var_str(m, m.ltop) + "<br/>"
 	html += "INDEX: " + make_var_str(m, m.index) + "<br/>"
-	html += "RELS: "
-	for(var r in m.rels)html += " " + m.rels[r].pred;
+	html += "RELS: <br/>"
+	for(var r in m.rels)
+	{
+		var rel = m.rels[r]
+		html += " " + make_var_str(m, rel.label) + ":" + rel.pred;
+		html += "("
+		var comma = ""
+		for(a in rel.args)
+		{
+			html += comma + rel.args[a].name + ": " + make_var_str(m, rel.args[a].value)
+			comma = ","
+		}
+		html += ")<br/>"
+	}
 	html += "<br/>"
 	mrs.innerHTML = html
 	ov = document.getElementById("overlay");
