@@ -139,6 +139,28 @@ int	write_tree(char	*prof_path, char	*parse_id, char	*t_version, char	*t_active,
 	return 0;
 }
 
+int	write_parse_result_count(char	*prof_path, char	*parse_id, char	*readings)
+{
+	struct tsdb	*t = get_pinned_profile(prof_path);
+	struct relation	*r = t?get_relation(t, "parse"):NULL;
+	if(!t || !r)return -1;
+
+	int	pref_parse_id = get_field(r, "parse-id", "integer");
+	int	pref_readings = get_field(r, "readings", "integer");
+
+	char	**tup = tsdb_lookup_relation_with_key(r, pref_parse_id, parse_id);
+	if(!tup)
+	{
+		fprintf(stderr, "wanted to write readings=%s for parse-id %s, but couldn't find that tuple\n", readings, parse_id);
+		return -1;
+	}
+
+	tup[pref_readings] = strdup(readings);
+	if(reindex_and_write(t,r) != 0)return -1;
+
+	return 0;
+}
+
 int	write_preference(char	*prof_path, char	*parse_id, char	*t_version, char	*result_id)
 {
 	struct tsdb	*t = get_pinned_profile(prof_path);
@@ -307,6 +329,7 @@ int	save_tree_for_item(char	*profile_id, char	*parse_id, struct tree	*t)
 	char	*derivation = tree_to_derivation(t);
 	int res = write_result(profile_id, parse_id, "0", derivation, mrs_string);
 	if(!res)res = write_preference(profile_id, parse_id, "1", "0");
+	if(!res)res = write_parse_result_count(profile_id, parse_id, "1");
 	free(derivation);
 	clear_mrs();
 	clear_slab();

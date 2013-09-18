@@ -280,6 +280,72 @@ int	send_tree(FILE	*f, struct tb_edge	*e, struct reconstruction_error	*error)
 	else return 0;
 }
 
+void	send_mrs(FILE	*f, struct tb_edge	*e)
+{
+	struct tree	*t = extract_tree(e, 0);
+	assert(t != NULL);
+	struct dg	*result = reconstruct_tree_or_error(t, NULL, NULL);
+	assert(result != NULL);
+	free_tree(t);
+	clear_mrs();
+	struct mrs	*m = extract_mrs(result);
+	assert(m != NULL);
+
+	int i, j;
+	fprintf(f, "{ltop: %d, index: %d, rels: [\n", m->ltop->vnum, m->index->vnum);
+	for(i=0;i<m->nrels;i++)
+	{
+		if(i)fprintf(f, ",");
+		struct mrs_ep	*e = &m->rels[i];
+		char	*esc = dqescape(e->pred);
+		fprintf(f, "{pred:\"%s\",label:%d,args:[", esc, e->lbl->vnum);
+		free(esc);
+		for(j=0;j<e->nargs;j++)
+			fprintf(f, "%s{name:\"%s\",value:%d}", j?",":"", e->args[j].name, e->args[j].value->vnum);
+		fprintf(f, "]}");
+	}
+	fprintf(f, "], hcons: [");
+	for(i=0;i<m->nhcons;i++)
+	{
+		char	*type = "??";
+		if(m->hcons[i].type == hcons_leq)type = "<=";
+		else if(m->hcons[i].type == hcons_geq)type = ">=";
+		else if(m->hcons[i].type == hcons_qeq)type = "=q";
+		fprintf(f, "%s{type:\"%s\",left:%d,right:%d}", i?",":"", type, m->hcons[i].hi->vnum, m->hcons[i].lo->vnum);
+	}
+	extern int mrs_enable_icons;
+	if(mrs_enable_icons)
+	{
+		fprintf(f, "], icons: [");
+		for(i=0;i<m->nicons;i++)
+			fprintf(f, "%s{type:\"%s\",left:%d,right:%d}",
+				i?",":"", m->icons[i].type, m->icons[i].left->vnum, m->icons[i].right->vnum);
+	}
+	fprintf(f, "], vars: [");
+	for(i=0;i<m->vlist.nvars;i++)
+	{
+		struct mrs_var	*v = m->vlist.vars[i];
+		if(i)fprintf(f, ",");
+		if(v->is_const)
+		{
+			char	*esc = dqescape(v->name);
+			fprintf(f, "\"%s\"", esc);
+			free(esc);
+		}
+		else
+		{
+			fprintf(f, "{type:\"%s\",num:%d,props:[", v->type, v->vnum);
+			for(j=0;j<v->nprops;j++)
+				fprintf(f, "%s{name:\"%s\",value:\"%s\"}",
+					j?",":"", v->props[j].name, v->props[j].value);
+			fprintf(f, "]}");
+		}
+	}
+	fprintf(f, "]}");
+
+	clear_slab();
+}
+
 void	web_session(FILE	*f, char	*query)
 {
 	int	id = atoi(query);
@@ -554,6 +620,12 @@ void	web_session(FILE	*f, char	*query)
 			fprintf(f, "],");
 			if(res != 0)
 				fprintf(f, "error: 'Reconstruction failed on that tree.',");	// shouldn't happen unless we're also sending a detailed description of the error with the chunking code
+			else
+			{
+				fprintf(f, "mrses: [");
+				send_mrs(f, S->parse->edges[i]);
+				fprintf(f, "],");
+			}
 		}
 		else fprintf(f, "trees: [],");
 	}
@@ -568,6 +640,12 @@ void	web_session(FILE	*f, char	*query)
 		fprintf(f, "],");
 		if(res != 0)
 			fprintf(f, "error: 'Reconstruction failed on that tree.',");	// shouldn't happen unless we're also sending a detailed description of the error with the chunking code
+		else
+		{
+			fprintf(f, "mrses: [");
+			send_mrs(f, S->parse->roots[i]);
+			fprintf(f, "],");
+		}
 	}
 	else fprintf(f, "trees: [],\n");
 	fprintf(f, "end:0}\n");

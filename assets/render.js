@@ -3,6 +3,11 @@ svg.setAttribute("version", "1.1");
 document.getElementById("disc-scroller").appendChild(svg);
 svg.style.background = "white";
 
+var mrsbutton = document.createElement("button");
+mrsbutton.innerHTML="[Show MRS]";
+mrsbutton.onclick = show_mrs;
+//document.getElementById("disc-scroller").appendChild(mrsbutton);
+
 //var containerTag = "svg";	// results in sloooow rendering
 var containerTag = "g";	// results in fast rendering!
 
@@ -183,6 +188,34 @@ function render_tree_popups(t, isleft, isright, istop)
 	return g;
 }
 
+function make_var_str(m,idx)
+{
+	var v = m.vars[idx]
+	return v.type + idx
+}
+
+function show_mrs()
+{
+	var ov = document.getElementById("overlay");
+	var mrs = document.createElement("div");
+	var m = message.mrses[0]
+	var html = ""
+	html += "TOP: " + make_var_str(m, m.ltop) + "<br/>"
+	html += "INDEX: " + make_var_str(m, m.index) + "<br/>"
+	html += "RELS: "
+	for(var r in m.rels)html += " " + m.rels[r].pred;
+	html += "<br/>"
+	mrs.innerHTML = html
+	ov = document.getElementById("overlay");
+	ov.appendChild(mrs);
+	ov.style.display = "block";
+	mrs.onclick = function()
+	{
+		ov.removeChild(mrs);
+		ov.style.display = "none";
+	}
+}
+
 function show_trees()
 {
 	var total_h = 0;
@@ -199,12 +232,14 @@ function show_trees()
 
 	if(message.trees.length > 0)
 	{
+		host.appendChild(mrsbutton);
 		host.appendChild(svg);
 		availWidth = host.clientWidth - 18;
 		availHeight = host.clientHeight - 18;
 	}
 	else
 	{
+		if(mrsbutton.parentNode)mrsbutton.parentNode.removeChild(mrsbutton);
 		if(svg.parentNode)svg.parentNode.removeChild(svg);
 		if(message.recons_error)
 		{
@@ -237,8 +272,7 @@ function show_trees()
 	//for(var x in message.trees)
 	if(message.trees.length > 0)
 	{
-	x = 0
-	{
+		x = 0
 		var	t = render_tree(message.trees[x]);
 		t.setAttribute("y", total_h);
 		var	popt = render_tree_popups(message.trees[x], 1, 1, 1);
@@ -248,7 +282,6 @@ function show_trees()
 		var b = t.getBBox();
 		total_h += b.height;
 		if(b.width > max_w)max_w = b.width;
-	}
 	}
 
 	var scale = availWidth / max_w;
