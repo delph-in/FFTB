@@ -316,6 +316,7 @@ int	save_tree_for_item(char	*profile_id, char	*parse_id, struct tree	*t)
 	}
 	else
 	{
+		clear_mrs();
 		struct mrs	*m = extract_mrs(dag);
 		if(m)mrs_string = mrs_to_string(m);
 		else
