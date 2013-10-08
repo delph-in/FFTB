@@ -1106,7 +1106,8 @@ struct option long_options[] = {
 	{"items", required_argument, NULL, 'i'},
 	{"browser", optional_argument, NULL, 'b'},
 	{"webdir", required_argument, NULL, 'w'},
-	{"connl-tokenization", no_argument, &use_connl_tokenization, 1}
+	{"connl-tokenization", no_argument, &use_connl_tokenization, 1},
+	{NULL,0,NULL,0}
 	};
 
 struct hash	*item_list_hash = NULL;
