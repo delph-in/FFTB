@@ -677,6 +677,6 @@ void	web_comment(FILE	*f, char	*query)
 	sprintf(prof_path, "%s/%s", tsdb_home_path, S->profile_id);
 	char	t_active[32];
 	sprintf(t_active, "%d", get_t_active(S->profile_id, S->parse_id));
-	int result = write_tree(prof_path, S->parse_id, "1", t_active, getenv("LOGNAME"), S->comment);
+	int result = write_tree(prof_path, S->parse_id, "1", t_active, getenv("LOGNAME"), S->comment, get_t_start(S->profile_id, S->parse_id), get_t_end(S->profile_id, S->parse_id));
 	webreply(f, "200 ok");
 }

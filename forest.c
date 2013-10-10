@@ -1027,6 +1027,7 @@ void	web_parse(FILE	*f, char	*cgiargs)
 		P->nedges, P->nroots);
 
 	struct session	*S = calloc(sizeof(*S),1);
+	gettimeofday(&S->t_start, NULL);
 	S->profile_id = strdup(path);
 	S->item_id = strdup(id);
 	S->input = input;	// already strdup'd

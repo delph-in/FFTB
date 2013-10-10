@@ -69,6 +69,8 @@ struct session
 	struct constraint	*gold_dec;
 	char				*gold_active;
 	char	*comment;
+
+	struct timeval	t_start;
 };
 
 struct parse	*do_unary_closure(struct parse	*Pin);
@@ -89,6 +91,10 @@ int	get_t_active(char	*prof_id, char	*parse_id);
 int	get_t_active_p(struct tsdb	*t, char	*parse_id);
 char	*get_t_comment(char	*prof_id, char	*parse_id);
 char	*get_t_comment_p(struct tsdb	*t, char	*parse_id);
+char	*get_t_start(char	*prof_id, char	*parse_id);
+char	*get_t_start_p(struct tsdb	*t, char	*parse_id);
+char	*get_t_end(char	*prof_id, char	*parse_id);
+char	*get_t_end_p(struct tsdb	*t, char	*parse_id);
 char	*get_parse_id_p(struct tsdb	*t, char	*item_id);
 char	*status_string(int	t_active);
 char	*status_color(int	t_active);

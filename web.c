@@ -47,6 +47,15 @@ void	html_footers(FILE	*f)
 	fclose(f);
 }
 
+char	*date_string(struct timeval	tv)
+{
+	char	buffer[1024];
+	time_t	time = tv.tv_sec;
+	// want:   5-sep-2013 14:05:30
+	strftime(buffer, 1000, "%d-%m-%Y %T", localtime(&time));
+	return strdup(buffer);
+}
+
 void	add_tuple(struct relation	*r, char	**tup)
 {
 	int	j;
@@ -110,7 +119,7 @@ purge_tuples(struct relation	*r, int	field, char	*value)
 	r->ntuples = j;
 }
 
-int	write_tree(char	*prof_path, char	*parse_id, char	*t_version, char	*t_active, char	*author, char	*comment)
+int	write_tree(char	*prof_path, char	*parse_id, char	*t_version, char	*t_active, char	*author, char	*comment, char	*t_start, char	*t_end)
 {
 	struct tsdb	*t = get_pinned_profile(prof_path);
 	struct relation	*r = t?get_relation(t, "tree"):NULL;
@@ -121,6 +130,8 @@ int	write_tree(char	*prof_path, char	*parse_id, char	*t_version, char	*t_active,
 	int	tree_t_active = get_field(r, "t-active", "integer");
 	int	tree_t_author = get_field(r, "t-author", "string");
 	int	tree_t_comment = get_field(r, "t-comment", "string");
+	int	tree_t_start = get_field(r, "t-start", "date");
+	int	tree_t_end = get_field(r, "t-end", "date");
 
 	// first, purge all old records referring to this parse_id from the relation 
 	purge_tuples(r, tree_parse_id, parse_id);
@@ -132,6 +143,8 @@ int	write_tree(char	*prof_path, char	*parse_id, char	*t_version, char	*t_active,
 	tup[tree_t_active] = strdup(t_active);
 	tup[tree_t_author] = strdup(author);
 	tup[tree_t_comment] = strdup(comment);
+	tup[tree_t_start] = t_start?strdup(t_start):NULL;
+	tup[tree_t_end] = t_end?strdup(t_end):NULL;
 
 	add_tuple(r, tup);
 	if(reindex_and_write(t,r) != 0)return -1;
@@ -390,7 +403,16 @@ void	web_save(FILE	*f, char	*query)
 
 	// write a record to 'tree'
 
-	if(!result)result = write_tree(prof_path, S->parse_id, "1", accepted?"1":"0", getenv("LOGNAME"), S->comment);
+	if(!result)
+	{
+		struct timeval	t_end;
+		gettimeofday(&t_end, NULL);
+		char	*st_start = date_string(S->t_start);
+		char	*st_end = date_string(t_end);
+		result = write_tree(prof_path, S->parse_id, "1", accepted?"1":"0", getenv("LOGNAME"), S->comment, st_start, st_end);
+		free(st_start);
+		free(st_end);
+	}
 
 	if(accepted == 1)
 	{
@@ -504,6 +526,41 @@ int	get_t_active_p(struct tsdb	*t, char	*parse_id)
 	char	**tuple = tsdb_lookup_relation_with_key(tree, t_parse_id, parse_id);
 	if(!tuple)return -1;
 	return atoi(tuple[t_t_active]);
+}
+
+char	*get_t_end_p(struct tsdb	*t, char	*parse_id)
+{
+	struct relation	*tree = get_relation(t, "tree");
+	int	t_parse_id = get_field(tree, "parse-id", "integer"),
+		t_t_end = get_field(tree, "t-end", "date");
+	char	**tuple = tsdb_lookup_relation_with_key(tree, t_parse_id, parse_id);
+	if(!tuple)return "";
+	return tuple[t_t_end];
+}
+
+char	*get_t_end(char	*prof_id, char	*parse_id)
+{
+	char	prof_path[10240];
+	sprintf(prof_path, "%s/%s", tsdb_home_path, prof_id);
+	struct tsdb	*t = cached_get_profile_and_pin(prof_path);
+	return get_t_end_p(t, parse_id);
+}
+char	*get_t_start_p(struct tsdb	*t, char	*parse_id)
+{
+	struct relation	*tree = get_relation(t, "tree");
+	int	t_parse_id = get_field(tree, "parse-id", "integer"),
+		t_t_start = get_field(tree, "t-start", "date");
+	char	**tuple = tsdb_lookup_relation_with_key(tree, t_parse_id, parse_id);
+	if(!tuple)return "";
+	return tuple[t_t_start];
+}
+
+char	*get_t_start(char	*prof_id, char	*parse_id)
+{
+	char	prof_path[10240];
+	sprintf(prof_path, "%s/%s", tsdb_home_path, prof_id);
+	struct tsdb	*t = cached_get_profile_and_pin(prof_path);
+	return get_t_start_p(t, parse_id);
 }
 
 char	*get_t_comment(char	*prof_id, char	*parse_id)
@@ -822,7 +879,9 @@ long long	update_item(struct tsdb	*gold, struct tsdb	*prof, char	*iid, char	**co
 		printf(" ... saving this tree as preferred, with decisions from gold");
 		int result = save_decisions(prof->path, prof_pid, ngolddecs, golddecs);
 		char	*comment = get_t_comment_p(gold, gold_pid);
-		if(!result)result = write_tree(prof->path, prof_pid, "1", "1", getenv("LOGNAME"), comment);
+		char	*gold_t_start = get_t_start_p(gold, gold_pid);
+		char	*gold_t_end = get_t_end_p(gold, gold_pid);
+		if(!result)result = write_tree(prof->path, prof_pid, "1", "1", getenv("LOGNAME"), comment, gold_t_start, gold_t_end);
 		if(!result)result = save_tree_for_item(prof->path, prof_pid, t);
 		printf(" [ %s ]", result?"fail":"success");
 		if(!result)success = 1;
@@ -847,7 +906,7 @@ freeup2:
 	if(prof && prof_pid && !success)
 	{
 		char	*comment = (gold && gold_pid)?get_t_comment_p(gold, gold_pid):"";
-		write_tree(prof->path, prof_pid, "1", "-1", getenv("LOGNAME"), comment);
+		write_tree(prof->path, prof_pid, "1", "-1", getenv("LOGNAME"), comment, NULL, NULL);
 	}
 	return result;
 }
