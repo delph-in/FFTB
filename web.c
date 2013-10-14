@@ -53,6 +53,7 @@ char	*date_string(struct timeval	tv)
 	time_t	time = tv.tv_sec;
 	// want:   5-sep-2013 14:05:30
 	strftime(buffer, 1000, "%d-%m-%Y %T", localtime(&time));
+	printf("date string: %s\n", buffer);
 	return strdup(buffer);
 }
 
@@ -125,6 +126,8 @@ int	write_tree(char	*prof_path, char	*parse_id, char	*t_version, char	*t_active,
 	struct relation	*r = t?get_relation(t, "tree"):NULL;
 	if(!t || !r)return -1;
 
+	printf("write_tree(): t = %p  --  %s - %s\n", t, t_start, t_end);
+
 	int	tree_parse_id = get_field(r, "parse-id", "integer");
 	int	tree_t_version = get_field(r, "t-version", "integer");
 	int	tree_t_active = get_field(r, "t-active", "integer");
@@ -132,9 +135,6 @@ int	write_tree(char	*prof_path, char	*parse_id, char	*t_version, char	*t_active,
 	int	tree_t_comment = get_field(r, "t-comment", "string");
 	int	tree_t_start = get_field(r, "t-start", "date");
 	int	tree_t_end = get_field(r, "t-end", "date");
-
-	// first, purge all old records referring to this parse_id from the relation 
-	purge_tuples(r, tree_parse_id, parse_id);
 
 	char	*tup[r->nfields];
 	bzero(tup, sizeof(tup));
@@ -145,6 +145,9 @@ int	write_tree(char	*prof_path, char	*parse_id, char	*t_version, char	*t_active,
 	tup[tree_t_comment] = strdup(comment);
 	tup[tree_t_start] = t_start?strdup(t_start):NULL;
 	tup[tree_t_end] = t_end?strdup(t_end):NULL;
+
+	// purge all old records referring to this parse_id from the relation 
+	purge_tuples(r, tree_parse_id, parse_id);
 
 	add_tuple(r, tup);
 	if(reindex_and_write(t,r) != 0)return -1;

@@ -95,6 +95,7 @@ char	*get_t_start(char	*prof_id, char	*parse_id);
 char	*get_t_start_p(struct tsdb	*t, char	*parse_id);
 char	*get_t_end(char	*prof_id, char	*parse_id);
 char	*get_t_end_p(struct tsdb	*t, char	*parse_id);
+int	write_tree(char	*prof_path, char	*parse_id, char	*t_version, char	*t_active, char	*author, char	*comment, char	*t_start, char	*t_end);
 char	*get_parse_id_p(struct tsdb	*t, char	*item_id);
 char	*status_string(int	t_active);
 char	*status_color(int	t_active);
