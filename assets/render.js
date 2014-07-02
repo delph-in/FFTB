@@ -851,7 +851,7 @@ function open_lextype_docs(event, lextype)
 		if(event.stopPropagation)event.stopPropagation();
 		else event.cancelBubble = true;
 		event.preventDefault();
-		return open_window("http://lingo.stanford.edu/~danf/cgi-bin/ERG_1010/description.cgi?type=" + lextype);
+		return open_window("http://lingo.stanford.edu/~danf/cgi-bin/ERG_1212/description.cgi?type=" + lextype);
 	}
 }
 
