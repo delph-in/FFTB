@@ -126,7 +126,7 @@ int	write_tree(char	*prof_path, char	*parse_id, char	*t_version, char	*t_active,
 	struct relation	*r = t?get_relation(t, "tree"):NULL;
 	if(!t || !r)return -1;
 
-	printf("write_tree(): t = %p  --  %s - %s\n", t, t_start, t_end);
+	//printf("write_tree(): t = %p  --  %s - %s\n", t, t_start, t_end);
 
 	int	tree_parse_id = get_field(r, "parse-id", "integer");
 	int	tree_t_version = get_field(r, "t-version", "integer");
@@ -720,6 +720,8 @@ int	get_forest_timer = -1;
 int	unary_closure_timer = -1;
 int	count_timer = -1;
 
+int	update_manual_decisions_only = 0;
+
 long long	update_item(struct tsdb	*gold, struct tsdb	*prof, char	*iid, char	**color)
 {
 	int result = 0;
@@ -749,6 +751,17 @@ long long	update_item(struct tsdb	*gold, struct tsdb	*prof, char	*iid, char	**co
 
 	struct constraint	*golddecs = NULL;
 	int ngolddecs = gold_pid ? get_decisions(gold, gold_pid, &golddecs) : 0;
+
+	if(update_manual_decisions_only)
+	{
+		int k, nm = 0;
+		struct constraint	*mandecs = calloc(sizeof(*mandecs),ngolddecs);
+		for(k=0;k<ngolddecs;k++)
+			if(!golddecs[k].inferred)
+				mandecs[nm++] = golddecs[k];
+		golddecs = mandecs;
+		ngolddecs = nm;
+	}
 
 	stop_timer(get_decis_timer, ngolddecs>=0?ngolddecs:0);
 
@@ -1169,6 +1182,7 @@ struct option long_options[] = {
 	{"browser", optional_argument, NULL, 'b'},
 	{"webdir", required_argument, NULL, 'w'},
 	{"connl-tokenization", no_argument, &use_connl_tokenization, 1},
+	{"manual-decisions-only", no_argument, &update_manual_decisions_only, 1},
 	{NULL,0,NULL,0}
 	};
 
