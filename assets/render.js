@@ -192,7 +192,55 @@ function make_var_str(m,idx)
 {
 	var v = m.vars[idx]
 	if(typeof(v) == typeof(""))return v
-	else return v.type + idx
+	else return "<span class='mrsvar' onmouseover='show_mrsvar("+idx+")' onmouseout='show_mrsvar(-1)' varid='"+idx+"'>" + v.type + idx + "</span>"
+}
+
+mrsdiv = ""
+
+function hilight_mrsvar(d, idx, color)
+{
+	var vid=d.getAttribute("varid")
+	if(vid)
+	{
+		if(vid==idx || idx==-1)
+			d.style.color = color
+	}
+	else for(var xi in d.childNodes)
+	{
+		var x = d.childNodes[xi]
+		if(typeof(x)==typeof(d) && 3!=x.nodeType)
+			hilight_mrsvar(x, idx, color)
+	}
+}
+
+function show_mrsvar(idx)
+{
+	if(idx>=0)
+	{
+		hilight_mrsvar(mrsdiv, -1, "darkgreen")
+		hilight_mrsvar(mrsdiv, idx, "red")
+		var m = message.mrses[0]
+		for(var hc in m.hcons)
+			if(m.hcons[hc].left == idx)
+				hilight_mrsvar(mrsdiv, m.hcons[hc].right, "darkred")
+		var	v = m.vars[idx]
+		var h = v.type + " [ "
+		for(var pi in v.props)
+		{
+			var	p = v.props[pi].name
+			var val = v.props[pi].value
+			if(pi>0)h += ',  '
+			h += p + ": " + val
+		}
+		h += " ] "
+		vardiv.innerHTML = h
+		vardiv.style.display = "block"
+	}
+	else
+	{
+		hilight_mrsvar(mrsdiv, -1, "darkgreen")
+		vardiv.style.display="none"
+	}
 }
 
 function show_mrs()
@@ -217,10 +265,34 @@ function show_mrs()
 		}
 		html += ")<br/>"
 	}
+	html += "<br/>HCONS:  "
+	for(var h in m.hcons)
+	{
+		var	hc = m.hcons[h]
+		if(h>0)html += ",  "
+		html += make_var_str(m, hc.left)
+		if(hc.type=='=q')html += " =<sub>q</sub> "
+		else html += " " + hc.type + " "
+		html += make_var_str(m, hc.right)
+	}
+	html += "<br/>ICONS:  "
+	for(var h in m.icons)
+	{
+		var	hc = m.icons[h]
+		if(h>0)html += ",  "
+		html += make_var_str(m, hc.left)
+		html += " " + hc.type + " "
+		html += make_var_str(m, hc.right)
+	}
 	html += "<br/>"
 	mrs.innerHTML = html
+	mrsdiv = mrs
+	vardiv = document.createElement("div")
+	vardiv.className="varinfo"
+	vardiv.style.display="none"
 	ov = document.getElementById("overlay");
 	ov.appendChild(mrs);
+	ov.appendChild(vardiv);
 	ov.style.display = "block";
 	mrs.onclick = function()
 	{

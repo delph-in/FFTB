@@ -1150,6 +1150,8 @@ void	web_callback(int	fd, void	*ptr, struct sockaddr_in	addr)
 			web_comment(f, path+9);
 		else if(!strncmp(path, "/save?", 6))
 			web_save(f, path);
+		//else if(!strncmp(path, "/island?", 8))
+			//web_island(f, path+8);
 		else fclose(f);
 	}
 	fflush(stdout);
@@ -1174,6 +1176,7 @@ launch_browser(char	*browsername, char	*url)
 
 char	*grammar_roots = "root_strict root_inffrag root_informal root_frag";	// used when invoking ACE online
 
+extern int allow_islands;
 struct option long_options[] = {
 #define	GOLD_OPTION	1001
 	{"gold", required_argument, NULL, GOLD_OPTION},
@@ -1183,6 +1186,7 @@ struct option long_options[] = {
 	{"webdir", required_argument, NULL, 'w'},
 	{"connl-tokenization", no_argument, &use_connl_tokenization, 1},
 	{"manual-decisions-only", no_argument, &update_manual_decisions_only, 1},
+	{"islands", no_argument, &allow_islands, 1},
 	{NULL,0,NULL,0}
 	};
 

@@ -71,6 +71,9 @@ struct session
 	char	*comment;
 
 	struct timeval	t_start;
+
+	//int	nislands;
+	//struct tb_edge	**islands;
 };
 
 struct parse	*do_unary_closure(struct parse	*Pin);

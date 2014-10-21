@@ -20,6 +20,7 @@
 
 #include	"treebank.h"
 
+int allow_islands = 0;
 char	*dqescape(char	*raw);
 
 struct tree	*duplicate_tree(struct tree	*tin)
@@ -476,6 +477,7 @@ void	web_session(FILE	*f, char	*query)
 	send_escaped("comment", get_t_comment(S->profile_id, S->parse_id));
 	send_escaped("item_id", S->item_id);
 	send_escaped("item", S->input);
+	//fprintf(f, "allow_islands: %d,\n", allow_islands);
 	long long	ntrees = count_remaining_trees(S->parse, c, nc);
 	fprintf(f, "ntrees: %lld,\n", ntrees);
 	fprintf(f, "tokens: [");
@@ -680,3 +682,41 @@ void	web_comment(FILE	*f, char	*query)
 	int result = write_tree(prof_path, S->parse_id, "1", t_active, getenv("LOGNAME"), S->comment, get_t_start(S->profile_id, S->parse_id), get_t_end(S->profile_id, S->parse_id));
 	webreply(f, "200 ok");
 }
+
+/*
+int	edge_id_gen = 1000000000;
+struct tb_edge	*make_island(struct session	*S, int	from, int	to)
+{
+}
+
+struct tb_edge	*make_island_root(struct parse	*p, int	nislands, struct tb_edge	**islands)
+{
+	struct tb_edge	*r = calloc(sizeof(struct tb_edge),1);
+	r->sign = strdup("bridge");
+	r->sign_with_lexnames = strdup("bridge");
+	r->id = edge_id_gen++;
+	r->from = 99999;
+	r->to = 0;
+	int i;
+	return r;
+}
+
+
+void	web_island(FILE	*f, char	*query)
+{
+	int	id, from, to;
+	if(3 != sscanf(query, "%d;%d,%d", &id, &from, &to)) { webreply(f, "500 bad syntax"); return; }
+	struct session	*S = get_session(id);
+	if(!S) { webreply(f, "404 no such session"); return; }
+
+	S->parse->nroots = 0;
+	S->islands = realloc(S->islands, sizeof(struct tb_edge*)*(S->nislands+1));
+	S->islands[S->nislands++] = make_island(S->parse, from, to);
+	struct tb_edge	*r = make_island_root(S->parse);
+	S->parse->nroots = 1;
+	S->parse->roots = realloc(S->parse->roots, sizeof(struct tb_edge*));
+	S->parse->roots[0] = r;
+
+	webreply(f, "200 ok");
+}
+*/
