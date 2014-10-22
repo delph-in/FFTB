@@ -907,7 +907,8 @@ function show_decisions()
 
 function select_discriminant(d)
 {
-	decisions.push({type:'=',sign:d.sign,from:d.from,to:d.to,inferred:0});
+	if(d.type)decisions.push({type:d.type,sign:d.sign,from:d.from,to:d.to,inferred:0});
+	else decisions.push({type:'=',sign:d.sign,from:d.from,to:d.to,inferred:0});
 	refilter();
 }
 
@@ -995,9 +996,100 @@ function buildYield(from, to)
 	return y;
 }
 
+disctype = 'exactly'
+
+function constituent_discriminants()
+{
+	var discs = []
+	var cons = {}
+	for(var c in message.discriminants)
+	{
+		var d = message.discriminants[c]
+		sp = d.from + "-" + d.to
+		if(!cons[sp])cons[sp] = 0
+		cons[sp] += d.count
+	}
+	for(var sp in cons)
+	{
+		if(cons[sp] < message.ntrees)
+		{
+			from=parseInt(sp.split("-")[0])
+			to=parseInt(sp.split("-")[1])
+			discs.push({from:from, to:to, type: "=", sign: "span", count: cons[sp]})
+		}
+	}
+	return discs
+}
+
+function present_discriminants()
+{
+	var discs = []
+	var cons = {}
+	for(var c in message.discriminants)
+	{
+		var d = message.discriminants[c]
+		var rules = d.sign.split("@")
+		var uniquerules = {}
+		for(var ri in rules)uniquerules[rules[ri]]=1
+		for(r in uniquerules)
+		{
+			sp = d.from + "-" + d.to + "@" + r
+			if(!cons[sp])cons[sp] = 0
+			cons[sp] += d.count
+		}
+	}
+	for(var sp in cons)
+	{
+		if(cons[sp] < message.ntrees)
+		{
+			from=parseInt(sp.split("-")[0])
+			to=parseInt(sp.split("-")[1])
+			r=sp.split("@")[1]
+			discs.push({from:from, to:to, type: "+", sign: r, count: cons[sp]})
+		}
+	}
+	return discs
+}
+
+function absent_discriminants()
+{
+	var discs = []
+	var cons = {}
+	for(var c in message.discriminants)
+	{
+		var d = message.discriminants[c]
+		var rules = d.sign.split("@")
+		var uniquerules = {}
+		for(var ri in rules)uniquerules[rules[ri]]=1
+		for(r in uniquerules)
+		{
+			sp = d.from + "-" + d.to + "@" + r
+			if(!cons[sp])cons[sp] = 0
+			cons[sp] += d.count
+		}
+	}
+	for(var sp in cons)
+	{
+		if(cons[sp] < message.ntrees)
+		{
+			from=parseInt(sp.split("-")[0])
+			to=parseInt(sp.split("-")[1])
+			r=sp.split("@")[1]
+			discs.push({from:from, to:to, type: "-", sign: r, count: message.ntrees - cons[sp]})
+		}
+	}
+	return discs
+}
+
 function show_discriminants()
 {
-	var discs = message.discriminants.sort(
+	var	dtp = document.getElementById("disctypepicker")
+	if(dtp)disctype = dtp.options[dtp.selectedIndex].value
+	var pool = message.discriminants
+	if(disctype=='constituent')pool = constituent_discriminants()
+	else if(disctype=='present')pool = present_discriminants()
+	else if(disctype=='absent')pool = absent_discriminants()
+	var discs = pool.sort(
 		function(x,y) { return (x.to - x.from) - (y.to - y.from); } );
 	var div = document.getElementById("disc-scroller");
 
@@ -1010,6 +1102,18 @@ function show_discriminants()
 
 	var frag = document.createDocumentFragment();
 	// add them to 'frag', and then all-at-once to 'div' to avoid excessive layout costs
+
+	if(message.trees.length == 0)
+	{
+		selecthtml = "<select id='disctypepicker' onchange='show_discriminants()'>"
+		selecthtml += "<option value='constituent'" + (disctype=='constituent'?" selected":"") + ">Is A Constituent</option>"
+		selecthtml += "<option value='exactly'" + (disctype=='exactly'?" selected":"") + ">Exact Unary Chain</option>"
+		selecthtml += "<option value='present'" + (disctype=='present'?" selected":"") + ">Using Rule X</option>"
+		selecthtml += "<option value='absent'" + (disctype=='absent'?" selected":"") + ">Not Using Rule</option>"
+		selecthtml += "</select>"
+		div.innerHTML += selecthtml
+	}
+
 	for(var x in discs)
 	{
 		var disc = discs[x];
@@ -1026,6 +1130,7 @@ function show_discriminants()
 		count.className = "count";
 		count.appendChild(document.createTextNode(disc.count + " trees"));
 		dd.appendChild(count);
+		//dd.appendChild(document.createTextNode(disc.type))
 		dd.discriminant = disc;
 		dd.onclick = function(x){return function(ev){
 			unhilight_dec(); select_discriminant(x.discriminant);}}(dd);

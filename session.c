@@ -600,9 +600,9 @@ void	web_session(FILE	*f, char	*query)
 			char	*ch = "=";
 			if(C->type == constraintPresent)ch = "+";
 			if(C->type == constraintAbsent)ch = "-";
-			if(C->type == constraintIsAConstituent)ch = "@";
+			if(C->type == constraintIsAConstituent)ch = "=";
 			fprintf(f, "{sign:\"%s\",type:\"%s\",from:%d,to:%d,inferred:%d,enabled:1}",
-				C->sign, ch, C->from, C->to, C->inferred);
+				C->sign?:"span", ch, C->from, C->to, C->inferred);
 		}
 		fprintf(f, "],");
 	}
