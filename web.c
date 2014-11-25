@@ -33,6 +33,7 @@ char	*tsdb_home_path = "/home/sweagles/logon/lingo/lkb/src/tsdb/home/";
 char	*only_tsdb_profile = NULL, *gold_tsdb_profile = NULL;
 
 extern int use_connl_tokenization;
+int suppress_bridges = 0;
 
 void	html_headers(FILE	*f, char	*title)
 {
@@ -845,6 +846,12 @@ long long	update_item(struct tsdb	*gold, struct tsdb	*prof, char	*iid, char	**co
 
 	start_timer(count_timer);
 	long long remaining = count_remaining_trees(P, golddecs, ngolddecs);
+	if(remaining>1 && suppress_bridges)
+	{
+		printf(" (suppressing bridges)");
+		add_bridge_suppression(P, &golddecs, &ngolddecs);
+		remaining = count_remaining_trees(P, golddecs, ngolddecs);
+	}
 	stop_timer(count_timer, 1);
 	printf("{%lld / %lld trees active}	", remaining, total); fflush(stdout);
 	//printf("under gold decisions, %lld possible tree(s)\n", remaining);
@@ -1187,6 +1194,7 @@ struct option long_options[] = {
 	{"connl-tokenization", no_argument, &use_connl_tokenization, 1},
 	{"manual-decisions-only", no_argument, &update_manual_decisions_only, 1},
 	{"islands", no_argument, &allow_islands, 1},
+	{"suppress-bridges", no_argument, &suppress_bridges, 1},
 	{NULL,0,NULL,0}
 	};
 
@@ -1194,7 +1202,7 @@ struct hash	*item_list_hash = NULL;
 
 hash_item_list(char	*items)
 {
-	char	*iid, *sep=" \t\r,";	// generous set of iid separators...
+	char	*iid, *sep=" \t\r\n,";	// generous set of iid separators...
 	item_list_hash = hash_new("active item list");
 	for(iid=strtok(items, sep);iid;iid=strtok(NULL, sep))
 		hash_add(item_list_hash, strdup(iid), (void*)0x1);

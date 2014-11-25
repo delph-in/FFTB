@@ -870,6 +870,30 @@ struct parse	*load_forest(struct tsdb	*profile, char	*pid)
 	return P;
 }
 
+void	add_bridge_suppression(struct parse	*p, struct constraint	**Decs, int	*Ndecs)
+{
+	if(!p->nroots)return;
+	// see if there's already a spanning discriminant that either (a) blocks xp-xp_bridge_c or (b) fully specifies the unary span. if so, we don't need to add anything.
+	int i;
+	int	tmax = p->roots[0]->to;
+	for(i=0;i<*Ndecs;i++)
+	{
+		struct constraint	*c = &(*Decs)[i];
+		if(c->to!=tmax || c->from!=0)continue;
+		if(c->type==constraintExactly)return;	// exact unary span spec
+		if(c->type==constraintPresent)return;	// if something specific is present, nothing new we can say about whether it's a bridge
+		if(c->type==constraintAbsent && strstr(c->sign, "_bridge_"))return;	// already blocked
+	}
+	(*Ndecs)++;
+	(*Decs) = realloc(*Decs, sizeof(struct constraint)*(*Ndecs));
+	struct constraint	*c = &(*Decs)[(*Ndecs)-1];
+	c->from = 0;
+	c->to = tmax;
+	c->type = constraintAbsent;
+	c->inferred = 1;
+	c->sign = strdup("xp-xp_bridge_c");
+}
+
 void	web_parse(FILE	*f, char	*cgiargs)
 {
 	char	*path = cgiarg(cgiargs, "profile=");
@@ -977,6 +1001,13 @@ void	web_parse(FILE	*f, char	*cgiargs)
 		ngold_dec = goldpid?get_decisions(goldprofile, goldpid, &gold_dec):0;
 
 	struct parse	*P = pid?load_forest(profile, pid):NULL;
+
+	extern int suppress_bridges;
+	if(P && !nprof_dec && suppress_bridges)
+	{
+		printf("no existing discriminants; suppressing bridges.\n");
+		add_bridge_suppression(P, &gold_dec, &ngold_dec);
+	}
 
 	if(P)
 	{

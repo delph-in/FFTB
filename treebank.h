@@ -89,6 +89,7 @@ char	*get_result(struct tsdb	*profile, char	*pid, char	*rid);
 int	get_decisions(struct tsdb	*profile, char	*pid, struct constraint	**Decs);
 struct parse	*load_forest(struct tsdb	*profile, char	*pid);
 struct tree	*extract_tree(struct tb_edge	*e, int	ucdepth);
+void	add_bridge_suppression(struct parse	*p, struct constraint	**Decs, int	*Ndecs);
 
 int	get_t_active(char	*prof_id, char	*parse_id);
 int	get_t_active_p(struct tsdb	*t, char	*parse_id);
