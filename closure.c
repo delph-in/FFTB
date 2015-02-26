@@ -242,5 +242,6 @@ struct parse	*do_unary_closure(struct parse	*Pin)
 	}
 	if(chains)free(chains);
 	compute_parentage(Pout);
+	printf("UCSTAT: input %d edges, output %d edges\n", Pin->nedges, Pout->nedges);
 	return Pout;
 }

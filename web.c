@@ -1195,6 +1195,8 @@ struct option long_options[] = {
 	{"manual-decisions-only", no_argument, &update_manual_decisions_only, 1},
 	{"islands", no_argument, &allow_islands, 1},
 	{"suppress-bridges", no_argument, &suppress_bridges, 1},
+#define	RANDOM_OPTION	1002
+	{"random", optional_argument, NULL, RANDOM_OPTION},
 	{NULL,0,NULL,0}
 	};
 
@@ -1226,8 +1228,9 @@ usage(char	*app, int status)
 
 main(int	argc, char	*argv[])
 {
-	int	ch, browser = 0, autoupdate = 0;
+	int	ch, randomize=0, browser = 0, autoupdate = 0;
 	char	*browsername = "firefox";
+	char	*randomize_mode = "uniform";
 	while( (ch = getopt_long(argc, argv, "Vhg:ab;i:w:", long_options, NULL)) != -1) switch(ch)
 	{
 		case	GOLD_OPTION: gold_tsdb_profile = optarg; break;
@@ -1239,6 +1242,7 @@ main(int	argc, char	*argv[])
 		case	'b': browser = 1; if(optarg)browsername = optarg; break;
 		case	'i': hash_item_list(optarg); break;
 		case	'w': assets_path = optarg; break;
+		case	RANDOM_OPTION: randomize = 1; if(optarg)randomize_mode = optarg; break;
 		case	'V': case	'h':	usage(argv[0],0);
 		case	0:	continue;
 		case	'?': usage(argv[0],-1);
@@ -1257,6 +1261,11 @@ main(int	argc, char	*argv[])
 	{
 		assert(gold_tsdb_profile != NULL);
 		web_update(stdout, NULL);
+		return 0;
+	}
+	if(randomize)
+	{
+		random_annotate(tsdb_home_path, randomize_mode);
 		return 0;
 	}
 

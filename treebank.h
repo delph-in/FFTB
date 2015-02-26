@@ -76,6 +76,16 @@ struct session
 	//struct tb_edge	**islands;
 };
 
+struct disc
+{
+	char	*sign;
+	long long		count;
+	int		from, to;
+	int	lexical;
+};
+
+void	get_discriminants(struct parse	*P, int	from, int	to, long long	ntrees, int	*Nd, struct disc	**D);
+
 struct parse	*do_unary_closure(struct parse	*Pin);
 struct session	*get_session(int	id);
 long long	count_remaining_trees(struct parse	*P, struct constraint	*c, int	nc);

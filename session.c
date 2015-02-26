@@ -78,18 +78,12 @@ void	compute_forcings(struct parse	*P, struct tb_edge	**forced_edge, int	max, lo
 	}
 }
 
-void	find_discriminants(FILE	*f, struct parse	*P, int	from, int	to, long long	ntrees)
+void	get_discriminants(struct parse	*P, int	from, int	to, long long	ntrees, int	*Nd, struct disc	**D)
 {
 	int	i, j;
 	int have_span = (from == -1)?0:1;
 	int	nd = 0;
-	struct disc
-	{
-		char	*sign;
-		long long		count;
-		int		from, to;
-		int	lexical;
-	}	*d = NULL;
+	struct disc	*d = NULL;
 
 	for(i=0;i<P->nedges;i++)
 	{
@@ -118,6 +112,16 @@ void	find_discriminants(FILE	*f, struct parse	*P, int	from, int	to, long long	nt
 			memmove(d+i, d+i+1, sizeof(struct disc)*(--nd - i));
 			i--;
 		}
+	*Nd = nd;
+	*D = d;
+}
+
+void	find_discriminants(FILE	*f, struct parse	*P, int	from, int	to, long long	ntrees)
+{
+	int	i;
+	int	nd = 0;
+	struct disc	*d = NULL;
+	get_discriminants(P, from, to, ntrees, &nd, &d);
 	for(i=0;i<nd;i++)
 	{
 		if(i > 0)fprintf(f, ",");
@@ -162,7 +166,7 @@ struct tree	*extract_tree(struct tb_edge	*e, int	ucdepth)
 		assert(i < e->npack);
 		e = e->pack[i];
 	}
-	assert(e->unpackings == 1);
+	//assert(e->unpackings == 1);
 
 	struct tree	*t = calloc(sizeof(*t),1);
 	t->label = get_uclabel(e->sign_with_lexnames, ucdepth);
