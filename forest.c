@@ -697,7 +697,7 @@ int is_usable_stored_parse(struct parse	*P)
 			// lookup the lexical type
 			if(e->sign)free(e->sign);
 			e->sign = sign_with_lexnames_to_sign_with_lextypes(e->sign_with_lexnames);
-			if(!e->sign) { return -1; }
+			if(!e->sign) { return 0; }
 		}
 	}
 	for(i=0;i<P->nedges;i++)
