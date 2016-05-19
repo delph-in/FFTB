@@ -113,8 +113,10 @@ purge_tuples(struct relation	*r, int	field, char	*value)
 	{
 		if(!strcmp(r->tuples[i][field], value))
 		{
-			int k;
-			for(k=0;k<r->nfields;k++)free(r->tuples[i][k]);
+			// modified libtsdb now stores all tuples in the same buffer (per row)
+			free(r->tuples[i][0]);
+			//int k;
+			//for(k=0;k<r->nfields;k++)free(r->tuples[i][k]);
 		}
 		else r->tuples[j++] = r->tuples[i];
 	}
