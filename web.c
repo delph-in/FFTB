@@ -301,10 +301,21 @@ char	*build_derivation(char	*str, struct tree	*t)
 
 char	*tree_to_derivation(struct tree	*t)
 {
-	int	len = len_of_derivation(t);
+	struct dg	*dg = reconstruct_tree_or_error(t, NULL, NULL);
+	assert(dg != NULL);
+	char	*root = is_root(dg);
+	if(root == NULL)
+	{
+		fprintf(stderr, "WARNING: the selected tree didn't match any root symbols.\n");
+		root = "NO_SUCH_ROOT";
+	}
+	int	len = len_of_derivation(t) + strlen(root) + 10;
 	char	*str = malloc(len+1);
-	build_derivation(str, t);
-	return str;
+	char	*str_orig = str;
+	str += sprintf(str, "(%s ", root);
+	str = build_derivation(str, t);
+	str += sprintf(str, ")");
+	return str_orig;
 }
 
 char	*mrs_to_string(struct mrs	*m)
@@ -447,7 +458,7 @@ void	web_save(FILE	*f, char	*query)
 void	web_no_such_direction(FILE	*f, int	dir, int	unan, struct session	*S)
 {
 	html_headers(f, "Oops!");
-	fprintf(f, "<h2>There is no active item %s %s.</h2>\n", unan?" unannotated":"", (dir>1)?"after":"before", S->item_id);
+	fprintf(f, "<h2>There is no%s active item %s %s.</h2>\n", unan?" unannotated":"", (dir>1)?"after":"before", S->item_id);
 	fprintf(f, "<script>window.location=\"/private%s\"</script>\n", S->profile_id);
 	html_footers(f);
 }
@@ -1180,7 +1191,7 @@ launch_browser(char	*browsername, char	*url)
 	sprintf(command, "%s %s &", browsername, url);
 #endif
 	int result = system(command);
-	if(result != 0)fprintf(stderr, "unable to launch browser\n", browsername);
+	if(result != 0)fprintf(stderr, "unable to launch browser: %s\n", browsername);
 }
 
 char	*grammar_roots = "root_strict root_inffrag root_informal root_frag";	// used when invoking ACE online

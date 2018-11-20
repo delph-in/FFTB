@@ -390,8 +390,8 @@ void	web_session(FILE	*f, char	*query)
 			}
 
 			int	from, to;
-			char	sign[128];
-			assert(strlen(d) < 128);
+			char	sign[1024];
+			assert(strlen(d) < 1024);
 			int	type = -1;
 			int inferred = 0;
 			if(4 == sscanf(d, "%[^:]:=:%d-%d:%d", sign, &from, &to, &inferred))
