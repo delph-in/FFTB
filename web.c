@@ -144,7 +144,7 @@ int	write_tree(char	*prof_path, char	*parse_id, char	*t_version, char	*t_active,
 	tup[tree_parse_id] = strdup(parse_id);
 	tup[tree_t_version] = strdup(t_version);
 	tup[tree_t_active] = strdup(t_active);
-	tup[tree_t_author] = strdup(author);
+	tup[tree_t_author] = strdup(author?:"");
 	tup[tree_t_comment] = strdup(comment);
 	tup[tree_t_start] = t_start?strdup(t_start):NULL;
 	tup[tree_t_end] = t_end?strdup(t_end):NULL;
