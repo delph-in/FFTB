@@ -907,8 +907,8 @@ function show_decisions()
 
 function select_discriminant(d)
 {
-	if(d.type)decisions.push({type:d.type,sign:d.sign,from:d.from,to:d.to,inferred:0});
-	else decisions.push({type:'=',sign:d.sign,from:d.from,to:d.to,inferred:0});
+	if(d.type)decisions.push({type:d.type,sign:d.sign,from:d.from,to:d.to,inferred:0,lex:d.lex});
+	else decisions.push({type:'=',sign:d.sign,from:d.from,to:d.to,inferred:0,lex:d.lex});
 	refilter();
 }
 
@@ -1015,7 +1015,7 @@ function constituent_discriminants()
 		{
 			from=parseInt(sp.split("-")[0])
 			to=parseInt(sp.split("-")[1])
-			discs.push({from:from, to:to, type: "=", sign: "span", count: cons[sp]})
+			discs.push({from:from, to:to, type: "=", sign: "span", count: cons[sp], lex:0})
 		}
 	}
 	return discs
@@ -1045,7 +1045,7 @@ function present_discriminants()
 			from=parseInt(sp.split("-")[0])
 			to=parseInt(sp.split("-")[1])
 			r=sp.split("@")[1]
-			discs.push({from:from, to:to, type: "+", sign: r, count: cons[sp]})
+			discs.push({from:from, to:to, type: "+", sign: r, count: cons[sp], lex:0})
 		}
 	}
 	return discs
