@@ -664,14 +664,14 @@ function renderable_span(text, from, to, has_bar, is_space)
 	}
 	else
 	{
-		d.onmousedown = function(x){return function(ev){ev.preventDefault();begin_hilight_words(x);if(ev.stopPropagaton)ev.stopPropagation(); else ev.cancelBubble = true;}}(d);
-		d.onmousemove = function(x){return function(ev){ev.preventDefault();drag_hilight_words(x);if(ev.stopPropagaton)ev.stopPropagation(); else ev.cancelBubble = true;}}(d);
-		d.addEventListener("mouseup", function(x){return function(ev){ev.preventDefault();end_hilight_words(x);if(ev.stopPropagaton)ev.stopPropagation(); else ev.cancelBubble = true;}}(d), false);
+		d.onmousedown = function(x){return function(ev){ev.preventDefault();begin_hilight_words(x);if(ev.stopPropagation)ev.stopPropagation(); else ev.cancelBubble = true;}}(d);
+		d.onmousemove = function(x){return function(ev){ev.preventDefault();drag_hilight_words(x);if(ev.stopPropagation)ev.stopPropagation(); else ev.cancelBubble = true;}}(d);
+		d.addEventListener("mouseup", function(x){return function(ev){ev.preventDefault();end_hilight_words(x);if(ev.stopPropagation)ev.stopPropagation(); else ev.cancelBubble = true;}}(d), false);
 	}
-	d.addEventListener("click", function(x){return function(ev){ev.preventDefault();if(ev.stopPropagaton)ev.stopPropagation(); else ev.cancelBubble = true;}}(d), false);
+	d.addEventListener("click", function(x){return function(ev){ev.preventDefault();if(ev.stopPropagation)ev.stopPropagation(); else ev.cancelBubble = true;}}(d), false);
 
-	document.getElementById("st-hide").addEventListener("click", function(x){return function(ev){ev.preventDefault();if(ev.stopPropagaton)ev.stopPropagation(); else ev.cancelBubble = true;show_spacetext();}}(d), false);
-	document.getElementById("st-show").addEventListener("click", function(x){return function(ev){ev.preventDefault();if(ev.stopPropagaton)ev.stopPropagation(); else ev.cancelBubble = true;hide_spacetext();}}(d), false);
+	document.getElementById("st-hide").addEventListener("click", function(x){return function(ev){ev.preventDefault();if(ev.stopPropagation)ev.stopPropagation(); else ev.cancelBubble = true;show_spacetext();}}(d), false);
+	document.getElementById("st-show").addEventListener("click", function(x){return function(ev){ev.preventDefault();if(ev.stopPropagation)ev.stopPropagation(); else ev.cancelBubble = true;hide_spacetext();}}(d), false);
 
 	return d;
 }
@@ -727,7 +727,8 @@ function show_sentence()
 	}
 
 	window.onmouseup = cancel_hilight;
-	document.getElementById("yellow").onclick = no_hilight;
+	//document.getElementById("yellow").addEventListener("click", no_hilight, false);
+	document.getElementById("yellow").addEventListener("mouseup", no_hilight, false);
 }
 
 /*function save_decisions()
