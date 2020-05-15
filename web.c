@@ -26,6 +26,7 @@
 #include	"treebank.h"
 
 #define	ERG_PATH	"/home/sweagles/grammars/erg/erg.dat"
+#define	DEFAULT_PORT	9080
 
 char	*assets_path = "assets";
 char	*tsdb_home_path = "/home/sweagles/logon/lingo/lkb/src/tsdb/home/";
@@ -1204,6 +1205,7 @@ struct option long_options[] = {
 	{"items", required_argument, NULL, 'i'},
 	{"browser", optional_argument, NULL, 'b'},
 	{"webdir", required_argument, NULL, 'w'},
+	{"port", required_argument, NULL, 'p'},
 	{"connl-tokenization", no_argument, &use_connl_tokenization, 1},
 	{"manual-decisions-only", no_argument, &update_manual_decisions_only, 1},
 	{"islands", no_argument, &allow_islands, 1},
@@ -1235,13 +1237,13 @@ iid_is_active(char	*iid)
 
 usage(char	*app, int status)
 {
-	printf("usage:  %s -g grammar.dat [--gold profile_path [--auto]] [--browser [firefox]] [--webdir web_path] profile_path\n", app);
+	printf("usage:  %s -g grammar.dat [--gold profile_path [--auto]] [--browser [firefox]] [--webdir web_path] [--port port_number] profile_path\n", app);
 	exit(status);
 }
 
 main(int	argc, char	*argv[])
 {
-	int	ch, randomize=0, browser = 0, autoupdate = 0;
+	int	ch, randomize=0, browser = 0, autoupdate = 0, port = 0;
 	char	*browsername = "firefox";
 	char	*randomize_mode = "uniform";
 	while( (ch = getopt_long(argc, argv, "Vhg:ab;i:w:", long_options, NULL)) != -1) switch(ch)
@@ -1255,6 +1257,7 @@ main(int	argc, char	*argv[])
 		case	'b': browser = 1; if(optarg)browsername = optarg; break;
 		case	'i': hash_item_list(optarg); break;
 		case	'w': assets_path = optarg; break;
+		case	'p': port = atoi(optarg); break;
 		case	RANDOM_OPTION: randomize = 1; if(optarg)randomize_mode = optarg; break;
 		case	'V': case	'h':	usage(argv[0],0);
 		case	0:	continue;
@@ -1281,8 +1284,7 @@ main(int	argc, char	*argv[])
 		random_annotate(tsdb_home_path, randomize_mode);
 		return 0;
 	}
-
-	int port = browser?0:9080;
+	if(!port && !browser)port = DEFAULT_PORT;
 	struct sockaddr_in	addr;
 	socklen_t	sl = sizeof(addr);
 	bzero(&addr, sl);
