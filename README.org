@@ -1,0 +1,45 @@
+#+title: full forest treebanking
+
+FFTB is a tool for treebanking with DELPH-IN grammars that allows the
+selection of an arbitrary tree from the "full forest" without
+enumerating/unpacking all analyses in the parsing stage.
+
+This is a clone of the official Woodley's SVN repository:
+
+http://sweaglesw.org/svn/treebank/
+
+More information at http://moin.delph-in.net/FftbTop
+
+
+* How was it created?
+
+#+BEGIN_SRC 
+git svn clone http://sweaglesw.org/svn/treebank --stdlayout --prefix=svn/ --authors-file=authors.txt
+cd treebank
+git for-each-ref --format="%(refname:lstrip=-1) %(objectname)" refs/remotes/svn/tags
+#+END_SRC
+
+The last command returned a list of tags in the SVN. Only one tag was created
+
+: git tag packard-2015 b6eed89c6b0d2fbc251cbcc44a279b31b1a1b7d9
+
+
+* How to update it with the SVN changes?
+
+#+BEGIN_SRC 
+git svn fetch
+git svn rebase
+git push --all -u origin
+#+END_SRC
+
+* How to contribute?
+
+The trunk branch is a mirror of the current state of the SVN repo, it
+should never be changed here. The master branch will be used to
+consolidate the changes from the SVN and, for now, holds this README
+file and the authors.txt used in the repository creation.
+
+We can use the issues to track bugs and feature requests. Branches
+with contributions can be created based on the trunk branch. they will
+not be incorporated in the trunk directly, but they can be eventually
+accepted by Woodley and incorporated in the SVN repository.
