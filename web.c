@@ -1289,7 +1289,7 @@ main(int	argc, char	*argv[])
 	socklen_t	sl = sizeof(addr);
 	bzero(&addr, sl);
 	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	addr.sin_addr.s_addr = 0; // inet_addr("127.0.0.1");
 	addr.sin_port = htons(port);
 	int fd = socket(AF_INET, SOCK_STREAM, 0);
 	assert(fd>=0);
